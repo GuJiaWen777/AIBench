@@ -1,0 +1,61 @@
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { AibenchApi, AppConfig, ThemeMode } from '../shared/types'
+
+const api: AibenchApi = {
+  config: {
+    get: () => ipcRenderer.invoke('config:get'),
+    update: (partial: Partial<AppConfig>) => ipcRenderer.invoke('config:update', partial),
+    pickDirectory: () => ipcRenderer.invoke('config:pickDirectory')
+  },
+  skills: {
+    list: (frameworkId) => ipcRenderer.invoke('skills:list', frameworkId),
+    get: (frameworkId, dirName) => ipcRenderer.invoke('skills:get', frameworkId, dirName),
+    installFromPath: (sourcePath, frameworkIds, overwrite) =>
+      ipcRenderer.invoke('skills:installFromPath', sourcePath, frameworkIds, overwrite),
+    installFromZip: (zipPath, frameworkIds, overwrite) =>
+      ipcRenderer.invoke('skills:installFromZip', zipPath, frameworkIds, overwrite),
+    create: (input) => ipcRenderer.invoke('skills:create', input),
+    update: (input) => ipcRenderer.invoke('skills:update', input),
+    remove: (frameworkId, dirName) => ipcRenderer.invoke('skills:remove', frameworkId, dirName),
+    onChanged: (callback) => {
+      const handler = (): void => callback()
+      ipcRenderer.on('skills:changed', handler)
+      return () => ipcRenderer.removeListener('skills:changed', handler)
+    },
+    rescan: () => ipcRenderer.invoke('skills:rescan')
+  },
+  archive: {
+    list: () => ipcRenderer.invoke('archive:list'),
+    restore: (id, frameworkIds, overwrite) =>
+      ipcRenderer.invoke('archive:restore', id, frameworkIds, overwrite),
+    deletePermanent: (id) => ipcRenderer.invoke('archive:deletePermanent', id)
+  },
+  prompts: {
+    list: (query, tag) => ipcRenderer.invoke('prompts:list', query, tag),
+    get: (id) => ipcRenderer.invoke('prompts:get', id),
+    create: (title, body, tags) => ipcRenderer.invoke('prompts:create', title, body, tags),
+    update: (id, title, body, tags) =>
+      ipcRenderer.invoke('prompts:update', id, title, body, tags),
+    delete: (id) => ipcRenderer.invoke('prompts:delete', id),
+    listTags: () => ipcRenderer.invoke('prompts:listTags'),
+    exportOne: (id) => ipcRenderer.invoke('prompts:exportOne', id),
+    exportAll: () => ipcRenderer.invoke('prompts:exportAll')
+  },
+  shell: {
+    openPath: (targetPath) => ipcRenderer.invoke('shell:openPath', targetPath),
+    pickFile: (filters) => ipcRenderer.invoke('shell:pickFile', filters),
+    pickDirectory: () => ipcRenderer.invoke('shell:pickDirectory'),
+    getFilePath: (file) => webUtils.getPathForFile(file)
+  },
+  theme: {
+    get: () => ipcRenderer.invoke('theme:get'),
+    setMode: (mode: ThemeMode) => ipcRenderer.invoke('theme:setMode', mode),
+    onChanged: (callback) => {
+      const handler = (_: unknown, isDark: boolean): void => callback(isDark)
+      ipcRenderer.on('theme:changed', handler)
+      return () => ipcRenderer.removeListener('theme:changed', handler)
+    }
+  }
+}
+
+contextBridge.exposeInMainWorld('aibench', api)
