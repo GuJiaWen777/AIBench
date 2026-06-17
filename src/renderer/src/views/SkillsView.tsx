@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AppConfig, CreateSkillInput, SkillDetail, SkillItem } from '@shared/types'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
+import ArchiveView from './ArchiveView'
 
 interface Props {
   config: AppConfig
 }
 
 export default function SkillsView({ config }: Props): React.ReactElement {
+  const [activeTab, setActiveTab] = useState<'skills' | 'archive'>('skills')
   const [frameworkId, setFrameworkId] = useState(config.frameworks[0]?.id ?? '')
   const [skills, setSkills] = useState<SkillItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -125,75 +127,105 @@ export default function SkillsView({ config }: Props): React.ReactElement {
     <div
       className={`flex h-full flex-col ${dragOver ? 'ring-2 ring-inset ring-blue-400' : ''}`}
       onDragOver={(e) => {
+        if (activeTab !== 'skills') return
         e.preventDefault()
         setDragOver(true)
       }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => void onDrop(e)}
+      onDrop={(e) => {
+        if (activeTab === 'skills') void onDrop(e)
+      }}
     >
-      <header className="flex flex-wrap items-center gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-        <h2 className="text-xl font-semibold">Skills</h2>
-        <div className="flex flex-1 flex-wrap gap-2">
-          {config.frameworks.map((fw) => (
+      <header className="space-y-3 border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold">Skills</h2>
+            <p className="mt-1 text-sm text-zinc-500">管理本地 Agent Skill 与归档</p>
+          </div>
+          <div className="segmented">
             <button
-              key={fw.id}
               type="button"
-              onClick={() => setFrameworkId(fw.id)}
-              className={`rounded-lg px-3 py-1.5 text-sm ${
-                frameworkId === fw.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
-              }`}
+              className={activeTab === 'skills' ? 'segmented-active' : 'segmented-item'}
+              onClick={() => setActiveTab('skills')}
             >
-              {fw.name}
+              Skills
             </button>
-          ))}
+            <button
+              type="button"
+              className={activeTab === 'archive' ? 'segmented-active' : 'segmented-item'}
+              onClick={() => setActiveTab('archive')}
+            >
+              归档
+            </button>
+          </div>
         </div>
-        <input
-          className="input max-w-xs"
-          placeholder="搜索 Skill…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <button type="button" className="btn-secondary" onClick={() => void load()}>
-          刷新
-        </button>
-        <button type="button" className="btn-secondary" onClick={() => void handlePickZip()}>
-          安装 Zip
-        </button>
-        <button type="button" className="btn-secondary" onClick={() => void handlePickFolder()}>
-          安装文件夹
-        </button>
-        <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
-          新建 Skill
-        </button>
+        {activeTab === 'skills' && (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-1 flex-wrap gap-2">
+              {config.frameworks.map((fw) => (
+                <button
+                  key={fw.id}
+                  type="button"
+                  onClick={() => setFrameworkId(fw.id)}
+                  className={frameworkId === fw.id ? 'chip-active' : 'chip'}
+                >
+                  {fw.name}
+                </button>
+              ))}
+            </div>
+            <input
+              className="input max-w-xs"
+              placeholder="搜索 Skill…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <button type="button" className="btn-secondary" onClick={() => void load()}>
+              刷新
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => void handlePickZip()}>
+              安装 Zip
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => void handlePickFolder()}>
+              安装文件夹
+            </button>
+            <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
+              新建 Skill
+            </button>
+          </div>
+        )}
       </header>
 
       <div className="flex-1 overflow-y-auto p-6">
-        {loading ? (
-          <p className="text-zinc-500">加载中…</p>
-        ) : filtered.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center text-zinc-500">
-            <p>暂无 Skill</p>
-            <p className="mt-2 text-sm">拖拽文件夹或 zip 到此处安装</p>
-          </div>
+        {activeTab === 'archive' ? (
+          <ArchiveView config={config} embedded />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((skill) => (
-              <button
-                key={skill.dirName}
-                type="button"
-                className="card text-left transition hover:border-blue-300 dark:hover:border-blue-700"
-                onClick={() => void openSkill(skill)}
-              >
-                <div className="font-medium">{skill.meta.name || skill.dirName}</div>
-                <div className="mt-1 text-xs text-zinc-500">{skill.dirName}</div>
-                <p className="mt-2 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
-                  {skill.meta.description || '无描述'}
-                </p>
-              </button>
-            ))}
-          </div>
+          <>
+            {loading ? (
+              <p className="text-zinc-500">加载中…</p>
+            ) : filtered.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center text-center text-zinc-500">
+                <p>暂无 Skill</p>
+                <p className="mt-2 text-sm">拖拽文件夹或 zip 到此处安装</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {filtered.map((skill) => (
+                  <button
+                    key={skill.dirName}
+                    type="button"
+                    className="card text-left transition hover:border-blue-300 dark:hover:border-blue-700"
+                    onClick={() => void openSkill(skill)}
+                  >
+                    <div className="font-medium">{skill.meta.name || skill.dirName}</div>
+                    <div className="mt-1 text-xs text-zinc-500">{skill.dirName}</div>
+                    <p className="mt-2 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
+                      {skill.meta.description || '无描述'}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 

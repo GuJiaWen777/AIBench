@@ -20,8 +20,41 @@ function defaultFrameworks(): Framework[] {
       name: 'Claude Code',
       path: path.join(home, '.claude', 'skills'),
       builtIn: true
+    },
+    {
+      id: 'codex',
+      name: 'Codex',
+      path: path.join(home, '.codex', 'skills'),
+      builtIn: true
+    },
+    {
+      id: 'hermes',
+      name: 'Hermes',
+      path: path.join(home, '.hermes', 'skills'),
+      builtIn: true
+    },
+    {
+      id: 'openclaw',
+      name: 'OpenClaw',
+      path: path.join(home, '.openclaw', 'skills'),
+      builtIn: true
     }
   ]
+}
+
+function mergeFrameworks(configured?: Framework[]): Framework[] {
+  const defaults = defaultFrameworks()
+  if (!configured) return defaults
+
+  const byId = new Map(configured.map((framework) => [framework.id, framework]))
+  const mergedBuiltIns = defaults.map((framework) => ({
+    ...framework,
+    ...byId.get(framework.id),
+    builtIn: true
+  }))
+  const custom = configured.filter((framework) => !defaults.some((item) => item.id === framework.id))
+
+  return [...mergedBuiltIns, ...custom]
 }
 
 function defaultConfig(): AppConfig {
@@ -46,7 +79,7 @@ export function getConfig(): AppConfig {
   if (fs.existsSync(filePath)) {
     try {
       const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Partial<AppConfig>
-      cached = { ...defaultConfig(), ...raw, frameworks: raw.frameworks ?? defaultFrameworks() }
+      cached = { ...defaultConfig(), ...raw, frameworks: mergeFrameworks(raw.frameworks) }
       return cached
     } catch {
       cached = defaultConfig()

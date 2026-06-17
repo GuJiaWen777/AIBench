@@ -5,9 +5,10 @@ import Modal from '../components/Modal'
 
 interface Props {
   config: AppConfig
+  embedded?: boolean
 }
 
-export default function ArchiveView({ config }: Props): React.ReactElement {
+export default function ArchiveView({ config, embedded = false }: Props): React.ReactElement {
   const [records, setRecords] = useState<ArchiveRecord[]>([])
   const [restoreTarget, setRestoreTarget] = useState<ArchiveRecord | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ArchiveRecord | null>(null)
@@ -53,11 +54,13 @@ export default function ArchiveView({ config }: Props): React.ReactElement {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-        <h2 className="text-xl font-semibold">归档</h2>
-        <p className="mt-1 text-sm text-zinc-500">已移除的 Skill，可恢复或彻底删除</p>
-      </header>
-      <div className="flex-1 overflow-y-auto p-6">
+      {!embedded && (
+        <header className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+          <h2 className="text-xl font-semibold">归档</h2>
+          <p className="mt-1 text-sm text-zinc-500">已移除的 Skill，可恢复或彻底删除</p>
+        </header>
+      )}
+      <div className={`flex-1 overflow-y-auto ${embedded ? 'p-0' : 'p-6'}`}>
         {records.length === 0 ? (
           <p className="text-zinc-500">归档为空</p>
         ) : (

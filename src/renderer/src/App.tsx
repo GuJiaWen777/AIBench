@@ -3,7 +3,6 @@ import type { AppConfig } from '@shared/types'
 import Sidebar, { type ViewId } from './components/Sidebar'
 import SkillsView from './views/SkillsView'
 import PromptsView from './views/PromptsView'
-import ArchiveView from './views/ArchiveView'
 import SettingsView from './views/SettingsView'
 
 export default function App(): React.ReactElement {
@@ -36,7 +35,6 @@ export default function App(): React.ReactElement {
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {view === 'skills' && <SkillsView config={config} />}
         {view === 'prompts' && <PromptsView />}
-        {view === 'archive' && <ArchiveView config={config} />}
         {view === 'settings' && <SettingsView config={config} onSaved={reloadConfig} />}
       </main>
     </div>
