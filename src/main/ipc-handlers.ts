@@ -97,6 +97,20 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('prompts:listTags', () => promptDb.listTags())
 
+  ipcMain.handle('prompts:listCategories', () => promptDb.listCategories())
+
+  ipcMain.handle('prompts:createCategory', (_e, name: string) =>
+    promptDb.createCategory(name)
+  )
+
+  ipcMain.handle('prompts:renameCategory', (_e, oldName: string, newName: string) =>
+    promptDb.renameCategory(oldName, newName)
+  )
+
+  ipcMain.handle('prompts:deleteCategory', (_e, name: string) =>
+    promptDb.deleteCategory(name)
+  )
+
   ipcMain.handle('prompts:exportOne', (_e, id: string) => exportService.exportPrompt(id))
 
   ipcMain.handle('prompts:exportAll', () => exportService.exportAllPrompts())

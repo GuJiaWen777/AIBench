@@ -1,9 +1,9 @@
 export type ViewId = 'skills' | 'prompts' | 'settings'
 
-const items: { id: ViewId; label: string }[] = [
-  { id: 'skills', label: 'Skills' },
-  { id: 'prompts', label: 'Prompts' },
-  { id: 'settings', label: '设置' }
+const items: { id: ViewId; label: string; short: string }[] = [
+  { id: 'skills', label: 'Skills', short: 'Sk' },
+  { id: 'prompts', label: 'Prompts', short: 'Pr' },
+  { id: 'settings', label: '设置', short: 'Se' }
 ]
 
 interface Props {
@@ -13,23 +13,26 @@ interface Props {
 
 export default function Sidebar({ current, onChange }: Props): React.ReactElement {
   return (
-    <aside className="flex w-48 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="border-b border-zinc-200 px-4 py-5 dark:border-zinc-800">
-        <h1 className="text-lg font-semibold tracking-tight">AIBench</h1>
-        <p className="mt-1 text-xs text-zinc-500">Skill & Prompt 管理</p>
+    <aside className="flex w-24 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="border-b border-zinc-200 px-3 py-4 text-center dark:border-zinc-800">
+        <h1 className="text-sm font-semibold tracking-tight">AIBench</h1>
       </div>
-      <nav className="flex flex-1 flex-col gap-1 p-3">
+      <nav className="flex flex-1 flex-col gap-2 p-2">
         {items.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => onChange(item.id)}
-            className={`rounded-md px-3 py-2 text-left text-sm transition-colors ${
+            title={item.label}
+            className={`rounded-md px-2 py-2 text-center text-xs transition-colors ${
               current === item.id
                 ? 'bg-blue-50 font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-200'
                 : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
             }`}
           >
+            <span className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-md border border-current text-[11px]">
+              {item.short}
+            </span>
             {item.label}
           </button>
         ))}

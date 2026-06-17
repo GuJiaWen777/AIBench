@@ -51,6 +51,12 @@ export interface PromptItem {
   updatedAt: string
 }
 
+export interface PromptCategory {
+  name: string
+  promptCount: number
+  saved: boolean
+}
+
 export interface InstallConflict {
   dirName: string
   targetPath: string
@@ -119,6 +125,10 @@ export interface AibenchApi {
     ) => Promise<PromptItem>
     delete: (id: string) => Promise<void>
     listTags: () => Promise<string[]>
+    listCategories: () => Promise<PromptCategory[]>
+    createCategory: (name: string) => Promise<PromptCategory[]>
+    renameCategory: (oldName: string, newName: string) => Promise<PromptCategory[]>
+    deleteCategory: (name: string) => Promise<PromptCategory[]>
     exportOne: (id: string) => Promise<string>
     exportAll: () => Promise<string[]>
   }

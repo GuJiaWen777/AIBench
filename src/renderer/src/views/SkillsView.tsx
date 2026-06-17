@@ -10,7 +10,7 @@ interface Props {
 
 export default function SkillsView({ config }: Props): React.ReactElement {
   const [activeTab, setActiveTab] = useState<'skills' | 'archive'>('skills')
-  const [frameworkId, setFrameworkId] = useState(config.frameworks[0]?.id ?? '')
+  const [frameworkId, setFrameworkId] = useState<string>('all')
   const [skills, setSkills] = useState<SkillItem[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -20,14 +20,20 @@ export default function SkillsView({ config }: Props): React.ReactElement {
   const [dragOver, setDragOver] = useState(false)
 
   const load = useCallback(async () => {
-    if (!frameworkId) return
     setLoading(true)
     try {
-      setSkills(await window.aibench.skills.list(frameworkId))
+      if (frameworkId === 'all') {
+        const lists = await Promise.all(
+          config.frameworks.map((framework) => window.aibench.skills.list(framework.id))
+        )
+        setSkills(lists.flat())
+      } else {
+        setSkills(await window.aibench.skills.list(frameworkId))
+      }
     } finally {
       setLoading(false)
     }
-  }, [frameworkId])
+  }, [config.frameworks, frameworkId])
 
   useEffect(() => {
     void load()
@@ -55,6 +61,7 @@ export default function SkillsView({ config }: Props): React.ReactElement {
   }
 
   const installToCurrent = async (sourcePath: string, overwrite = false): Promise<void> => {
+    if (frameworkId === 'all') return
     const result = await window.aibench.skills.installFromPath(
       sourcePath,
       [frameworkId],
@@ -70,11 +77,13 @@ export default function SkillsView({ config }: Props): React.ReactElement {
   }
 
   const handlePickFolder = async (): Promise<void> => {
+    if (frameworkId === 'all') return
     const dir = await window.aibench.shell.pickDirectory()
     if (dir) await installToCurrent(dir)
   }
 
   const handlePickZip = async (): Promise<void> => {
+    if (frameworkId === 'all') return
     const zip = await window.aibench.shell.pickFile([{ name: 'Zip', extensions: ['zip'] }])
     if (!zip) return
     const result = await window.aibench.skills.installFromZip(zip, [frameworkId])
@@ -90,6 +99,7 @@ export default function SkillsView({ config }: Props): React.ReactElement {
     setDragOver(false)
     const file = e.dataTransfer.files[0]
     if (!file) return
+    if (frameworkId === 'all') return
     const filePath = window.aibench.shell.getFilePath(file)
     if (file.name.endsWith('.zip')) {
       const result = await window.aibench.skills.installFromZip(filePath, [frameworkId])
@@ -160,19 +170,7 @@ export default function SkillsView({ config }: Props): React.ReactElement {
           </div>
         </div>
         {activeTab === 'skills' && (
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex flex-1 flex-wrap gap-2">
-              {config.frameworks.map((fw) => (
-                <button
-                  key={fw.id}
-                  type="button"
-                  onClick={() => setFrameworkId(fw.id)}
-                  className={frameworkId === fw.id ? 'chip-active' : 'chip'}
-                >
-                  {fw.name}
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <input
               className="input max-w-xs"
               placeholder="搜索 Skill…"
@@ -182,49 +180,97 @@ export default function SkillsView({ config }: Props): React.ReactElement {
             <button type="button" className="btn-secondary" onClick={() => void load()}>
               刷新
             </button>
-            <button type="button" className="btn-secondary" onClick={() => void handlePickZip()}>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={frameworkId === 'all'}
+              title={frameworkId === 'all' ? '请先选择一个平台' : undefined}
+              onClick={() => void handlePickZip()}
+            >
               安装 Zip
             </button>
-            <button type="button" className="btn-secondary" onClick={() => void handlePickFolder()}>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={frameworkId === 'all'}
+              title={frameworkId === 'all' ? '请先选择一个平台' : undefined}
+              onClick={() => void handlePickFolder()}
+            >
               安装文件夹
             </button>
-            <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={frameworkId === 'all'}
+              title={frameworkId === 'all' ? '请先选择一个平台' : undefined}
+              onClick={() => setCreateOpen(true)}
+            >
               新建 Skill
             </button>
           </div>
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex min-h-0 flex-1">
         {activeTab === 'archive' ? (
-          <ArchiveView config={config} embedded />
+          <div className="flex-1 overflow-y-auto p-6">
+            <ArchiveView config={config} embedded />
+          </div>
         ) : (
           <>
-            {loading ? (
-              <p className="text-zinc-500">加载中…</p>
-            ) : filtered.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center text-zinc-500">
-                <p>暂无 Skill</p>
-                <p className="mt-2 text-sm">拖拽文件夹或 zip 到此处安装</p>
+            <aside className="w-52 shrink-0 overflow-y-auto border-r border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="mb-2 px-2 text-xs font-medium uppercase text-zinc-500">
+                Agent 平台
               </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {filtered.map((skill) => (
-                  <button
-                    key={skill.dirName}
-                    type="button"
-                    className="card text-left transition hover:border-blue-300 dark:hover:border-blue-700"
-                    onClick={() => void openSkill(skill)}
-                  >
-                    <div className="font-medium">{skill.meta.name || skill.dirName}</div>
-                    <div className="mt-1 text-xs text-zinc-500">{skill.dirName}</div>
-                    <p className="mt-2 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
-                      {skill.meta.description || '无描述'}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
+              <button
+                type="button"
+                className={frameworkId === 'all' ? 'side-filter-active' : 'side-filter'}
+                onClick={() => setFrameworkId('all')}
+              >
+                <span>全部</span>
+              </button>
+              {config.frameworks.map((framework) => (
+                <button
+                  key={framework.id}
+                  type="button"
+                  className={frameworkId === framework.id ? 'side-filter-active' : 'side-filter'}
+                  onClick={() => setFrameworkId(framework.id)}
+                >
+                  <span>{framework.name}</span>
+                </button>
+              ))}
+            </aside>
+            <div className="flex-1 overflow-y-auto p-6">
+              {loading ? (
+                <p className="text-zinc-500">加载中…</p>
+              ) : filtered.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-center text-zinc-500">
+                  <p>暂无 Skill</p>
+                  <p className="mt-2 text-sm">
+                    {frameworkId === 'all' ? '所有平台暂无 Skill' : '拖拽文件夹或 zip 到此处安装'}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {filtered.map((skill) => (
+                    <button
+                      key={`${skill.frameworkId}:${skill.dirName}`}
+                      type="button"
+                      className="card text-left transition hover:border-blue-300 dark:hover:border-blue-700"
+                      onClick={() => void openSkill(skill)}
+                    >
+                      <div className="font-medium">{skill.meta.name || skill.dirName}</div>
+                      <div className="mt-1 text-xs text-zinc-500">
+                        {skill.frameworkName} / {skill.dirName}
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
+                        {skill.meta.description || '无描述'}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -296,7 +342,7 @@ export default function SkillsView({ config }: Props): React.ReactElement {
 
       {createOpen && (
         <CreateSkillModal
-          frameworkId={frameworkId}
+          frameworkId={frameworkId === 'all' ? config.frameworks[0]?.id ?? '' : frameworkId}
           onClose={() => setCreateOpen(false)}
           onCreated={() => {
             setCreateOpen(false)

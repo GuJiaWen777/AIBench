@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { PromptItem } from '@shared/types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { PromptCategory, PromptItem } from '@shared/types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+
+type CategorySelection = 'all' | 'uncategorized' | string
 
 function promptPreview(body: string): string {
   const preview = body.replace(/\s+/g, ' ').trim()
@@ -19,26 +21,38 @@ function formatUpdatedAt(value: string): string {
 
 export default function PromptsView(): React.ReactElement {
   const [prompts, setPrompts] = useState<PromptItem[]>([])
+  const [categories, setCategories] = useState<PromptCategory[]>([])
   const [search, setSearch] = useState('')
-  const [activeTag, setActiveTag] = useState<string | null>(null)
-  const [allTags, setAllTags] = useState<string[]>([])
+  const [activeCategory, setActiveCategory] = useState<CategorySelection>('all')
   const [draft, setDraft] = useState<PromptItem | null>(null)
   const [tagInput, setTagInput] = useState('')
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false)
 
   const loadList = useCallback(async () => {
-    const [list, tags] = await Promise.all([
-      window.aibench.prompts.list(search, activeTag ?? undefined),
-      window.aibench.prompts.listTags()
+    const [list, nextCategories] = await Promise.all([
+      window.aibench.prompts.list(search),
+      window.aibench.prompts.listCategories()
     ])
     setPrompts(list)
-    setAllTags(tags)
+    setCategories(nextCategories)
     return list
-  }, [search, activeTag])
+  }, [search])
 
   useEffect(() => {
     void loadList()
   }, [loadList])
+
+  const visiblePrompts = useMemo(() => {
+    if (activeCategory === 'all') return prompts
+    if (activeCategory === 'uncategorized') {
+      return prompts.filter((prompt) => prompt.tags.length === 0)
+    }
+    return prompts.filter((prompt) => prompt.tags.includes(activeCategory))
+  }, [activeCategory, prompts])
+
+  const uncategorizedCount = prompts.filter((prompt) => prompt.tags.length === 0).length
+  const categoryNames = categories.map((category) => category.name)
 
   const openPrompt = (prompt: PromptItem): void => {
     setDraft({ ...prompt })
@@ -46,7 +60,9 @@ export default function PromptsView(): React.ReactElement {
   }
 
   const createNew = async (): Promise<void> => {
-    const item = await window.aibench.prompts.create('新 Prompt', '', [])
+    const tags =
+      activeCategory !== 'all' && activeCategory !== 'uncategorized' ? [activeCategory] : []
+    const item = await window.aibench.prompts.create('新 Prompt', '', tags)
     await loadList()
     openPrompt(item)
   }
@@ -105,13 +121,32 @@ export default function PromptsView(): React.ReactElement {
     await loadList()
   }
 
+  const createCategory = async (name: string): Promise<void> => {
+    const next = await window.aibench.prompts.createCategory(name)
+    setCategories(next)
+  }
+
+  const renameCategory = async (oldName: string, newName: string): Promise<void> => {
+    const next = await window.aibench.prompts.renameCategory(oldName, newName)
+    setCategories(next)
+    if (activeCategory === oldName) setActiveCategory(newName)
+    await loadList()
+  }
+
+  const deleteCategory = async (name: string): Promise<void> => {
+    const next = await window.aibench.prompts.deleteCategory(name)
+    setCategories(next)
+    if (activeCategory === name) setActiveCategory('all')
+    await loadList()
+  }
+
   return (
     <div className="flex h-full flex-col">
       <header className="space-y-3 border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">Prompts</h2>
-            <p className="mt-1 text-sm text-zinc-500">卡片式浏览、复制和编辑 Prompt</p>
+            <p className="mt-1 text-sm text-zinc-500">按分类浏览、复制和编辑 Prompt</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn-secondary" onClick={() => void exportAll()}>
@@ -122,98 +157,120 @@ export default function PromptsView(): React.ReactElement {
             </button>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            className="input max-w-sm"
-            placeholder="搜索标题、正文、标签…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          <div className="flex flex-wrap gap-1">
-            <button
-              type="button"
-              className={activeTag === null ? 'chip-active' : 'chip'}
-              onClick={() => setActiveTag(null)}
-            >
-              全部
-            </button>
-            {allTags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                className={activeTag === tag ? 'chip-active' : 'chip'}
-                onClick={() => setActiveTag(tag)}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        </div>
+        <input
+          className="input max-w-sm"
+          placeholder="搜索标题、正文、分类…"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
       </header>
 
-      <section className="flex-1 overflow-y-auto p-6">
-        {prompts.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center text-zinc-500">
-            <p>暂无 Prompt</p>
-            <p className="mt-2 text-sm">新建一个 Prompt 后会以卡片显示在这里</p>
+      <div className="flex min-h-0 flex-1">
+        <aside className="w-56 shrink-0 overflow-y-auto border-r border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="mb-2 flex items-center justify-between gap-2 px-2">
+            <span className="text-xs font-medium uppercase text-zinc-500">分类</span>
+            <button
+              type="button"
+              className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-300"
+              onClick={() => setManageCategoriesOpen(true)}
+            >
+              管理
+            </button>
           </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {prompts.map((prompt) => (
-              <article
-                key={prompt.id}
-                role="button"
-                tabIndex={0}
-                className="card group relative min-h-[190px] cursor-pointer transition hover:border-blue-300 dark:hover:border-blue-700"
-                onClick={() => openPrompt(prompt)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    openPrompt(prompt)
-                  }
-                }}
-              >
-                <button
-                  type="button"
-                  className="icon-btn absolute right-3 top-3 opacity-80 group-hover:opacity-100"
-                  title="复制 Prompt 正文"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    void copyPrompt(prompt)
+          <button
+            type="button"
+            className={activeCategory === 'all' ? 'side-filter-active' : 'side-filter'}
+            onClick={() => setActiveCategory('all')}
+          >
+            <span>全部</span>
+            <span>{prompts.length}</span>
+          </button>
+          <button
+            type="button"
+            className={activeCategory === 'uncategorized' ? 'side-filter-active' : 'side-filter'}
+            onClick={() => setActiveCategory('uncategorized')}
+          >
+            <span>未分类</span>
+            <span>{uncategorizedCount}</span>
+          </button>
+          <div className="my-2 border-t border-zinc-200 dark:border-zinc-800" />
+          {categories.map((category) => (
+            <button
+              key={category.name}
+              type="button"
+              className={activeCategory === category.name ? 'side-filter-active' : 'side-filter'}
+              onClick={() => setActiveCategory(category.name)}
+            >
+              <span className="truncate">{category.name}</span>
+              <span>{category.promptCount}</span>
+            </button>
+          ))}
+        </aside>
+
+        <section className="flex-1 overflow-y-auto p-6">
+          {visiblePrompts.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center text-center text-zinc-500">
+              <p>暂无 Prompt</p>
+              <p className="mt-2 text-sm">新建一个 Prompt 后会以卡片显示在这里</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {visiblePrompts.map((prompt) => (
+                <article
+                  key={prompt.id}
+                  role="button"
+                  tabIndex={0}
+                  className="card group relative min-h-[190px] cursor-pointer transition hover:border-blue-300 dark:hover:border-blue-700"
+                  onClick={() => openPrompt(prompt)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      openPrompt(prompt)
+                    }
                   }}
                 >
-                  复制
-                </button>
-                <div className="pr-14">
-                  <h3 className="line-clamp-2 font-medium">{prompt.title}</h3>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    更新于 {formatUpdatedAt(prompt.updatedAt)}
+                  <button
+                    type="button"
+                    className="icon-btn absolute right-3 top-3 opacity-80 group-hover:opacity-100"
+                    title="复制 Prompt 正文"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      void copyPrompt(prompt)
+                    }}
+                  >
+                    复制
+                  </button>
+                  <div className="pr-14">
+                    <h3 className="line-clamp-2 font-medium">{prompt.title}</h3>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      更新于 {formatUpdatedAt(prompt.updatedAt)}
+                    </p>
+                  </div>
+                  <p className="mt-4 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                    {promptPreview(prompt.body)}
                   </p>
-                </div>
-                <p className="mt-4 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                  {promptPreview(prompt.body)}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-1">
-                  {prompt.tags.length === 0 ? (
-                    <span className="tag">无标签</span>
-                  ) : (
-                    prompt.tags.map((tag) => (
-                      <span key={tag} className="tag">
-                        {tag}
-                      </span>
-                    ))
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+                  <div className="mt-4 flex flex-wrap gap-1">
+                    {prompt.tags.length === 0 ? (
+                      <span className="tag">未分类</span>
+                    ) : (
+                      prompt.tags.map((tag) => (
+                        <span key={tag} className="tag">
+                          {tag}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       {draft && (
         <Modal
           open
-          title={`编辑 Prompt — ${draft.title}`}
+          title={`编辑 Prompt - ${draft.title}`}
           onClose={() => setDraft(null)}
           footer={
             <>
@@ -242,7 +299,7 @@ export default function PromptsView(): React.ReactElement {
               />
             </label>
             <div className="text-sm">
-              <span className="mb-1 block">标签</span>
+              <span className="mb-1 block">分类</span>
               <div className="flex flex-wrap gap-1">
                 {draft.tags.map((tag) => (
                   <button key={tag} type="button" className="tag" onClick={() => removeTag(tag)}>
@@ -253,8 +310,8 @@ export default function PromptsView(): React.ReactElement {
               <div className="mt-2 flex gap-2">
                 <input
                   className="input"
-                  list="tag-suggestions"
-                  placeholder="添加标签，回车确认"
+                  list="category-suggestions"
+                  placeholder="添加分类，回车确认"
                   value={tagInput}
                   onChange={(event) => setTagInput(event.target.value)}
                   onKeyDown={(event) => {
@@ -264,9 +321,9 @@ export default function PromptsView(): React.ReactElement {
                     }
                   }}
                 />
-                <datalist id="tag-suggestions">
-                  {allTags.map((tag) => (
-                    <option key={tag} value={tag} />
+                <datalist id="category-suggestions">
+                  {categoryNames.map((name) => (
+                    <option key={name} value={name} />
                   ))}
                 </datalist>
                 <button type="button" className="btn-secondary" onClick={addTag}>
@@ -286,6 +343,16 @@ export default function PromptsView(): React.ReactElement {
         </Modal>
       )}
 
+      {manageCategoriesOpen && (
+        <CategoryManager
+          categories={categories}
+          onClose={() => setManageCategoriesOpen(false)}
+          onCreate={(name) => void createCategory(name)}
+          onRename={(oldName, newName) => void renameCategory(oldName, newName)}
+          onDelete={(name) => void deleteCategory(name)}
+        />
+      )}
+
       {deleteId && (
         <ConfirmDialog
           message="确定永久删除此 Prompt 吗？此操作不可恢复。"
@@ -296,5 +363,128 @@ export default function PromptsView(): React.ReactElement {
         />
       )}
     </div>
+  )
+}
+
+function CategoryManager({
+  categories,
+  onClose,
+  onCreate,
+  onRename,
+  onDelete
+}: {
+  categories: PromptCategory[]
+  onClose: () => void
+  onCreate: (name: string) => void
+  onRename: (oldName: string, newName: string) => void
+  onDelete: (name: string) => void
+}): React.ReactElement {
+  const [newName, setNewName] = useState('')
+  const [editingName, setEditingName] = useState<string | null>(null)
+  const [editingValue, setEditingValue] = useState('')
+
+  const create = (): void => {
+    if (!newName.trim()) return
+    onCreate(newName.trim())
+    setNewName('')
+  }
+
+  const startEdit = (name: string): void => {
+    setEditingName(name)
+    setEditingValue(name)
+  }
+
+  const saveEdit = (): void => {
+    if (!editingName || !editingValue.trim()) return
+    onRename(editingName, editingValue.trim())
+    setEditingName(null)
+    setEditingValue('')
+  }
+
+  const remove = (name: string): void => {
+    const ok = confirm(`删除分类「${name}」？这会从所有 Prompt 中移除此分类，但不会删除 Prompt。`)
+    if (ok) onDelete(name)
+  }
+
+  return (
+    <Modal
+      open
+      title="管理分类"
+      onClose={onClose}
+      footer={
+        <button type="button" className="btn-primary" onClick={onClose}>
+          完成
+        </button>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex gap-2">
+          <input
+            className="input"
+            placeholder="新分类名称"
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                create()
+              }
+            }}
+          />
+          <button type="button" className="btn-secondary shrink-0" onClick={create}>
+            新建
+          </button>
+        </div>
+        <div className="space-y-2">
+          {categories.length === 0 ? (
+            <p className="text-sm text-zinc-500">暂无分类</p>
+          ) : (
+            categories.map((category) => (
+              <div
+                key={category.name}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 p-2 dark:border-zinc-800"
+              >
+                {editingName === category.name ? (
+                  <input
+                    className="input min-w-[180px] flex-1"
+                    value={editingValue}
+                    onChange={(event) => setEditingValue(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        saveEdit()
+                      }
+                    }}
+                  />
+                ) : (
+                  <div>
+                    <div className="text-sm font-medium">{category.name}</div>
+                    <div className="text-xs text-zinc-500">{category.promptCount} 个 Prompt</div>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  {editingName === category.name ? (
+                    <button type="button" className="btn-secondary" onClick={saveEdit}>
+                      保存
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => startEdit(category.name)}
+                    >
+                      重命名
+                    </button>
+                  )}
+                  <button type="button" className="btn-danger" onClick={() => remove(category.name)}>
+                    删除
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </Modal>
   )
 }

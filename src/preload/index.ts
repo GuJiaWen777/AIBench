@@ -38,6 +38,11 @@ const api: AibenchApi = {
       ipcRenderer.invoke('prompts:update', id, title, body, tags),
     delete: (id) => ipcRenderer.invoke('prompts:delete', id),
     listTags: () => ipcRenderer.invoke('prompts:listTags'),
+    listCategories: () => ipcRenderer.invoke('prompts:listCategories'),
+    createCategory: (name) => ipcRenderer.invoke('prompts:createCategory', name),
+    renameCategory: (oldName, newName) =>
+      ipcRenderer.invoke('prompts:renameCategory', oldName, newName),
+    deleteCategory: (name) => ipcRenderer.invoke('prompts:deleteCategory', name),
     exportOne: (id) => ipcRenderer.invoke('prompts:exportOne', id),
     exportAll: () => ipcRenderer.invoke('prompts:exportAll')
   },

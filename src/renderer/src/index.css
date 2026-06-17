@@ -80,3 +80,11 @@ button {
 .icon-btn {
   @apply inline-flex h-7 items-center justify-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
 }
+
+.side-filter {
+  @apply mb-1 flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-white dark:text-zinc-300 dark:hover:bg-zinc-900;
+}
+
+.side-filter-active {
+  @apply side-filter bg-white font-medium text-blue-700 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:text-blue-200 dark:ring-zinc-800;
+}
