@@ -2,6 +2,14 @@
 
 本地 Agent Skill 与 Prompt 管理桌面工具（Electron）。
 
+## 界面预览
+
+![Skills 管理界面](docs/screenshots/skills.svg)
+
+![Prompts 卡片列表](docs/screenshots/prompts.svg)
+
+![Prompt 编辑详情](docs/screenshots/prompt-editor.svg)
+
 ## 功能
 
 - **Skills**：按 Agent Framework 分栏浏览；安装文件夹 / zip；新建与编辑；归档与恢复
