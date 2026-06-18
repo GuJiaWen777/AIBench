@@ -135,7 +135,7 @@ export default function SkillsView({ config }: Props): React.ReactElement {
 
   return (
     <div
-      className={`flex h-full flex-col ${dragOver ? 'ring-2 ring-inset ring-blue-400' : ''}`}
+      className={`page-shell ${dragOver ? 'ring-2 ring-inset ring-cyan-400' : ''}`}
       onDragOver={(e) => {
         if (activeTab !== 'skills') return
         e.preventDefault()
@@ -146,11 +146,11 @@ export default function SkillsView({ config }: Props): React.ReactElement {
         if (activeTab === 'skills') void onDrop(e)
       }}
     >
-      <header className="space-y-3 border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <header className="command-header space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold">Skills</h2>
-            <p className="mt-1 text-sm text-zinc-500">管理本地 Agent Skill 与归档</p>
+            <h2 className="command-title">Skills</h2>
+            <p className="command-subtitle">管理本地 Agent Skill 与归档</p>
           </div>
           <div className="segmented">
             <button
@@ -213,13 +213,13 @@ export default function SkillsView({ config }: Props): React.ReactElement {
 
       <div className="flex min-h-0 flex-1">
         {activeTab === 'archive' ? (
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="content-scroll">
             <ArchiveView config={config} embedded />
           </div>
         ) : (
           <>
-            <aside className="w-52 shrink-0 overflow-y-auto border-r border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
-              <div className="mb-2 px-2 text-xs font-medium uppercase text-zinc-500">
+            <aside className="rail-panel">
+              <div className="rail-label">
                 Agent 平台
               </div>
               <button
@@ -240,30 +240,32 @@ export default function SkillsView({ config }: Props): React.ReactElement {
                 </button>
               ))}
             </aside>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="content-scroll">
               {loading ? (
-                <p className="text-zinc-500">加载中…</p>
+                <p className="text-slate-500">加载中…</p>
               ) : filtered.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center text-center text-zinc-500">
+                <div className="flex h-full flex-col items-center justify-center text-center text-slate-500">
                   <p>暂无 Skill</p>
                   <p className="mt-2 text-sm">
                     {frameworkId === 'all' ? '所有平台暂无 Skill' : '拖拽文件夹或 zip 到此处安装'}
                   </p>
                 </div>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="work-grid">
                   {filtered.map((skill) => (
                     <button
                       key={`${skill.frameworkId}:${skill.dirName}`}
                       type="button"
-                      className="card text-left transition hover:border-blue-300 dark:hover:border-blue-700"
+                      className="card text-left"
                       onClick={() => void openSkill(skill)}
                     >
-                      <div className="font-medium">{skill.meta.name || skill.dirName}</div>
-                      <div className="mt-1 text-xs text-zinc-500">
+                      <div className="font-semibold text-slate-950 dark:text-white">
+                        {skill.meta.name || skill.dirName}
+                      </div>
+                      <div className="meta-line mt-1">
                         {skill.frameworkName} / {skill.dirName}
                       </div>
-                      <p className="mt-2 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
+                      <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
                         {skill.meta.description || '无描述'}
                       </p>
                     </button>

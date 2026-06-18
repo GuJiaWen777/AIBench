@@ -151,12 +151,12 @@ export default function PromptsView(): React.ReactElement {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="space-y-3 border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="page-shell">
+      <header className="command-header space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold">Prompts</h2>
-            <p className="mt-1 text-sm text-zinc-500">按分类浏览、复制和编辑 Prompt</p>
+            <h2 className="command-title">Prompts</h2>
+            <p className="command-subtitle">按分类浏览、复制和编辑 Prompt</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn-secondary" onClick={() => void exportAll()}>
@@ -176,12 +176,12 @@ export default function PromptsView(): React.ReactElement {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="w-56 shrink-0 overflow-y-auto border-r border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+        <aside className="rail-panel">
           <div className="mb-2 flex items-center justify-between gap-2 px-2">
-            <span className="text-xs font-medium uppercase text-zinc-500">分类</span>
+            <span className="rail-label mb-0 px-0">分类</span>
             <button
               type="button"
-              className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-300"
+              className="text-xs font-semibold text-cyan-700 hover:text-cyan-800 dark:text-cyan-300"
               onClick={() => setManageCategoriesOpen(true)}
             >
               管理
@@ -203,7 +203,7 @@ export default function PromptsView(): React.ReactElement {
             <span>未分类</span>
             <span>{uncategorizedCount}</span>
           </button>
-          <div className="my-2 border-t border-zinc-200 dark:border-zinc-800" />
+          <div className="my-2 border-t border-slate-300 dark:border-slate-800" />
           {categories.map((category) => (
             <button
               key={category.name}
@@ -217,20 +217,20 @@ export default function PromptsView(): React.ReactElement {
           ))}
         </aside>
 
-        <section className="flex-1 overflow-y-auto p-6">
+        <section className="content-scroll">
           {visiblePrompts.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center text-zinc-500">
+            <div className="flex h-full flex-col items-center justify-center text-center text-slate-500">
               <p>暂无 Prompt</p>
               <p className="mt-2 text-sm">新建一个 Prompt 后会以卡片显示在这里</p>
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="work-grid">
               {visiblePrompts.map((prompt) => (
                 <article
                   key={prompt.id}
                   role="button"
                   tabIndex={0}
-                  className="card group relative min-h-[190px] cursor-pointer transition hover:border-blue-300 dark:hover:border-blue-700"
+                  className="card group relative min-h-[190px] cursor-pointer"
                   onClick={() => openPrompt(prompt)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -251,12 +251,14 @@ export default function PromptsView(): React.ReactElement {
                     复制
                   </button>
                   <div className="pr-14">
-                    <h3 className="line-clamp-2 font-medium">{prompt.title}</h3>
-                    <p className="mt-1 text-xs text-zinc-500">
+                    <h3 className="line-clamp-2 font-semibold text-slate-950 dark:text-white">
+                      {prompt.title}
+                    </h3>
+                    <p className="meta-line mt-1">
                       更新于 {formatUpdatedAt(prompt.updatedAt)}
                     </p>
                   </div>
-                  <p className="mt-4 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                  <p className="mt-4 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-slate-600 dark:text-slate-400">
                     {promptPreview(prompt.body)}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-1">
@@ -447,12 +449,12 @@ function CategoryManager({
         </div>
         <div className="space-y-2">
           {categories.length === 0 ? (
-            <p className="text-sm text-zinc-500">暂无分类</p>
+            <p className="text-sm text-slate-500">暂无分类</p>
           ) : (
             categories.map((category) => (
               <div
                 key={category.name}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 p-2 dark:border-zinc-800"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-300 bg-white/70 p-2 dark:border-slate-800 dark:bg-slate-900/70"
               >
                 {editingName === category.name ? (
                   <input
@@ -468,8 +470,8 @@ function CategoryManager({
                   />
                 ) : (
                   <div>
-                    <div className="text-sm font-medium">{category.name}</div>
-                    <div className="text-xs text-zinc-500">{category.promptCount} 个 Prompt</div>
+                    <div className="text-sm font-semibold">{category.name}</div>
+                    <div className="meta-line">{category.promptCount} 个 Prompt</div>
                   </div>
                 )}
                 <div className="flex gap-2">
