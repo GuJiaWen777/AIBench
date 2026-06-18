@@ -5,7 +5,7 @@
 ## 功能
 
 - **Skills**：按 Agent Framework 分栏浏览；安装文件夹 / zip；新建与编辑；归档与恢复
-- **Prompts**：SQLite 存储；卡片浏览；点击卡片复制正文；右上角打开编辑；分类标签管理；导出 Markdown
+- **Prompts**：SQLite 存储；卡片浏览；点击卡片打开详情；详情顶部复制正文；分类标签管理；导出 Markdown
 - **内置 Framework**：Codex CLI、Cursor、Claude Code、Hermes、OpenClaw；可添加 Custom Framework
 - **设置**：Framework 路径、归档目录、导出目录、深浅色主题
 

@@ -104,10 +104,6 @@ export default function PromptsView(): React.ReactElement {
     setDraft({ ...draft, tags: draft.tags.filter((item) => item !== tag) })
   }
 
-  const copyPrompt = async (prompt: PromptItem): Promise<void> => {
-    await navigator.clipboard.writeText(prompt.body)
-  }
-
   const copyDraft = async (): Promise<void> => {
     if (!draft) return
     await navigator.clipboard.writeText(draft.body)
@@ -231,41 +227,17 @@ export default function PromptsView(): React.ReactElement {
                   key={prompt.id}
                   role="button"
                   tabIndex={0}
-                  className="card group relative min-h-[190px] cursor-copy"
-                  title="点击复制 Prompt 正文"
-                  onClick={() => void copyPrompt(prompt)}
+                  className="card group relative min-h-[190px] cursor-pointer"
+                  title="打开 Prompt 详情"
+                  onClick={() => openPrompt(prompt)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault()
-                      void copyPrompt(prompt)
+                      openPrompt(prompt)
                     }
                   }}
                 >
-                  <div className="absolute right-3 top-3 flex gap-1 opacity-85 group-hover:opacity-100">
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      title="打开编辑"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        openPrompt(prompt)
-                      }}
-                    >
-                      打开
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      title="复制 Prompt 正文"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void copyPrompt(prompt)
-                      }}
-                    >
-                      复制
-                    </button>
-                  </div>
-                  <div className="pr-28">
+                  <div>
                     <h3 className="line-clamp-2 font-semibold text-slate-950 dark:text-white">
                       {prompt.title}
                     </h3>
@@ -299,14 +271,16 @@ export default function PromptsView(): React.ReactElement {
           open
           title="编辑 Prompt"
           onClose={() => setDraft(null)}
+          headerActions={
+            <button type="button" className="btn-secondary" onClick={() => void copyDraft()}>
+              复制
+            </button>
+          }
           panelClassName="max-w-5xl"
           footer={
             <>
               <button type="button" className="btn-danger" onClick={() => setDeleteId(draft.id)}>
                 删除
-              </button>
-              <button type="button" className="btn-secondary" onClick={() => void copyDraft()}>
-                复制
               </button>
               <button type="button" className="btn-secondary" onClick={() => void exportOne()}>
                 导出

@@ -4,6 +4,7 @@ interface Props {
   onClose: () => void
   children: React.ReactNode
   footer?: React.ReactNode
+  headerActions?: React.ReactNode
   panelClassName?: string
 }
 
@@ -13,6 +14,7 @@ export default function Modal({
   onClose,
   children,
   footer,
+  headerActions,
   panelClassName = 'max-w-2xl'
 }: Props): React.ReactElement | null {
   if (!open) return null
@@ -23,9 +25,12 @@ export default function Modal({
           <h2 className="min-w-0 truncate text-lg font-semibold text-slate-950 dark:text-white">
             {title}
           </h2>
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            关闭
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {headerActions}
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              关闭
+            </button>
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
         {footer && (
