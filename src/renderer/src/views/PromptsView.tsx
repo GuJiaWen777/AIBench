@@ -283,8 +283,9 @@ export default function PromptsView(): React.ReactElement {
       {draft && (
         <Modal
           open
-          title={`编辑 Prompt - ${draft.title}`}
+          title="编辑 Prompt"
           onClose={() => setDraft(null)}
+          panelClassName="max-w-5xl"
           footer={
             <>
               <button type="button" className="btn-danger" onClick={() => setDeleteId(draft.id)}>
@@ -302,52 +303,75 @@ export default function PromptsView(): React.ReactElement {
             </>
           }
         >
-          <div className="space-y-3">
-            <label className="block text-sm">
-              标题
-              <input
-                className="input mt-1"
-                value={draft.title}
-                onChange={(event) => setDraft({ ...draft, title: event.target.value })}
-              />
-            </label>
-            <div className="text-sm">
-              <span className="mb-1 block">分类</span>
-              <div className="flex flex-wrap gap-1">
-                {draft.tags.map((tag) => (
-                  <button key={tag} type="button" className="tag" onClick={() => removeTag(tag)}>
-                    {tag} x
-                  </button>
-                ))}
-              </div>
-              <div className="mt-2 flex gap-2">
+          <div className="grid min-h-[540px] gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+            <aside className="rounded-lg border border-slate-300 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/70">
+              <div className="meta-line">Prompt Profile</div>
+              <label className="mt-4 block text-sm font-semibold text-slate-800 dark:text-slate-100">
+                标题
                 <input
-                  className="input"
-                  list="category-suggestions"
-                  placeholder="添加分类，回车确认"
-                  value={tagInput}
-                  onChange={(event) => setTagInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      addTag()
-                    }
-                  }}
+                  className="input mt-2"
+                  value={draft.title}
+                  onChange={(event) => setDraft({ ...draft, title: event.target.value })}
                 />
-                <datalist id="category-suggestions">
-                  {categoryNames.map((name) => (
-                    <option key={name} value={name} />
-                  ))}
-                </datalist>
-                <button type="button" className="btn-secondary" onClick={addTag}>
-                  添加
-                </button>
+              </label>
+
+              <div className="mt-5 text-sm">
+                <span className="font-semibold text-slate-800 dark:text-slate-100">分类</span>
+                <div className="mt-2 flex min-h-9 flex-wrap gap-1.5">
+                  {draft.tags.length === 0 ? (
+                    <span className="tag">未分类</span>
+                  ) : (
+                    draft.tags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        className="tag gap-1 hover:border-rose-300 hover:text-rose-700 dark:hover:border-rose-700 dark:hover:text-rose-200"
+                        title={`移除 ${tag}`}
+                        onClick={() => removeTag(tag)}
+                      >
+                        <span>{tag}</span>
+                        <span className="font-semibold">x</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    className="input"
+                    list="category-suggestions"
+                    placeholder="添加分类"
+                    value={tagInput}
+                    onChange={(event) => setTagInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        addTag()
+                      }
+                    }}
+                  />
+                  <datalist id="category-suggestions">
+                    {categoryNames.map((name) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
+                  <button type="button" className="btn-secondary shrink-0" onClick={addTag}>
+                    添加
+                  </button>
+                </div>
               </div>
-            </div>
-            <label className="block text-sm">
-              正文
+
+              <div className="mt-5 rounded-md border border-slate-300 bg-white/80 p-3 dark:border-slate-800 dark:bg-slate-950/70">
+                <div className="meta-line">Updated</div>
+                <div className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  {formatUpdatedAt(draft.updatedAt)}
+                </div>
+              </div>
+            </aside>
+
+            <label className="flex min-h-0 flex-col text-sm font-semibold text-slate-800 dark:text-slate-100">
+              <span>正文</span>
               <textarea
-                className="textarea mt-1 min-h-[360px] w-full"
+                className="textarea mt-2 min-h-[500px] flex-1 rounded-lg leading-7"
                 value={draft.body}
                 onChange={(event) => setDraft({ ...draft, body: event.target.value })}
               />
