@@ -231,27 +231,41 @@ export default function PromptsView(): React.ReactElement {
                   key={prompt.id}
                   role="button"
                   tabIndex={0}
-                  className="card group relative min-h-[190px] cursor-pointer"
-                  onClick={() => openPrompt(prompt)}
+                  className="card group relative min-h-[190px] cursor-copy"
+                  title="点击复制 Prompt 正文"
+                  onClick={() => void copyPrompt(prompt)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault()
-                      openPrompt(prompt)
+                      void copyPrompt(prompt)
                     }
                   }}
                 >
-                  <button
-                    type="button"
-                    className="icon-btn absolute right-3 top-3 opacity-80 group-hover:opacity-100"
-                    title="复制 Prompt 正文"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      void copyPrompt(prompt)
-                    }}
-                  >
-                    复制
-                  </button>
-                  <div className="pr-14">
+                  <div className="absolute right-3 top-3 flex gap-1 opacity-85 group-hover:opacity-100">
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      title="打开编辑"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openPrompt(prompt)
+                      }}
+                    >
+                      打开
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      title="复制 Prompt 正文"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void copyPrompt(prompt)
+                      }}
+                    >
+                      复制
+                    </button>
+                  </div>
+                  <div className="pr-28">
                     <h3 className="line-clamp-2 font-semibold text-slate-950 dark:text-white">
                       {prompt.title}
                     </h3>
@@ -264,7 +278,7 @@ export default function PromptsView(): React.ReactElement {
                   </p>
                   <div className="mt-4 flex flex-wrap gap-1">
                     {prompt.tags.length === 0 ? (
-                      <span className="tag">未分类</span>
+                      <span className="tag tag-muted">未分类</span>
                     ) : (
                       prompt.tags.map((tag) => (
                         <span key={tag} className="tag">
@@ -319,18 +333,18 @@ export default function PromptsView(): React.ReactElement {
                 <span className="font-semibold text-slate-800 dark:text-slate-100">分类</span>
                 <div className="mt-2 flex min-h-9 flex-wrap gap-1.5">
                   {draft.tags.length === 0 ? (
-                    <span className="tag">未分类</span>
+                    <span className="tag tag-muted">未分类</span>
                   ) : (
                     draft.tags.map((tag) => (
                       <button
                         key={tag}
                         type="button"
-                        className="tag gap-1 hover:border-rose-300 hover:text-rose-700 dark:hover:border-rose-700 dark:hover:text-rose-200"
+                        className="tag tag-removable"
                         title={`移除 ${tag}`}
                         onClick={() => removeTag(tag)}
                       >
                         <span>{tag}</span>
-                        <span className="font-semibold">x</span>
+                        <span className="tag-remove-mark">x</span>
                       </button>
                     ))
                   )}
