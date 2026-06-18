@@ -23,4 +23,12 @@ npm run build
 npm run preview
 ```
 
+## Release
+
+```bash
+npm run release
+```
+
+Windows 产物输出到 `release/`，包括安装包、便携版和 zip 包。
+
 数据目录默认：`%APPDATA%/AIBench/`
