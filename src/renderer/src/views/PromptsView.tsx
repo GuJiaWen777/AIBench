@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { normalizePromptTags } from '@shared/prompt-tags'
 import type { PromptCategory, PromptItem } from '@shared/types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -79,12 +80,14 @@ export default function PromptsView(): React.ReactElement {
 
   const save = async (): Promise<void> => {
     if (!draft) return
+    const tags = normalizePromptTags([...draft.tags, tagInput])
     const updated = await window.aibench.prompts.update(
       draft.id,
       draft.title,
       draft.body,
-      draft.tags
+      tags
     )
+    setTagInput('')
     await loadList()
     openPrompt(updated)
   }
@@ -92,9 +95,7 @@ export default function PromptsView(): React.ReactElement {
   const addTag = (): void => {
     if (!draft || !tagInput.trim()) return
     const tag = tagInput.trim()
-    if (!draft.tags.includes(tag)) {
-      setDraft({ ...draft, tags: [...draft.tags, tag] })
-    }
+    setDraft({ ...draft, tags: normalizePromptTags([...draft.tags, tag]) })
     setTagInput('')
   }
 
