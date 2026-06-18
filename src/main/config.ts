@@ -23,8 +23,8 @@ function defaultFrameworks(): Framework[] {
     },
     {
       id: 'codex',
-      name: 'Codex',
-      path: path.join(home, '.codex', 'skills'),
+      name: 'Codex CLI',
+      path: path.join(home, '.agents', 'skills'),
       builtIn: true
     },
     {
@@ -47,9 +47,18 @@ function mergeFrameworks(configured?: Framework[]): Framework[] {
   if (!configured) return defaults
 
   const byId = new Map(configured.map((framework) => [framework.id, framework]))
+  const oldCodexPath = path.join(os.homedir(), '.codex', 'skills')
   const mergedBuiltIns = defaults.map((framework) => ({
     ...framework,
     ...byId.get(framework.id),
+    path:
+      framework.id === 'codex' && byId.get(framework.id)?.path === oldCodexPath
+        ? framework.path
+        : byId.get(framework.id)?.path ?? framework.path,
+    name:
+      framework.id === 'codex' && byId.get(framework.id)?.name === 'Codex'
+        ? framework.name
+        : byId.get(framework.id)?.name ?? framework.name,
     builtIn: true
   }))
   const custom = configured.filter((framework) => !defaults.some((item) => item.id === framework.id))

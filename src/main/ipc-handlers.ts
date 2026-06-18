@@ -135,10 +135,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('theme:get', () => nativeTheme.shouldUseDarkColors)
 
   ipcMain.handle('theme:setMode', (_e, mode: ThemeMode) => {
-    const config = updateConfig({ theme: mode })
+    updateConfig({ theme: mode })
     if (mode === 'system') nativeTheme.themeSource = 'system'
     else nativeTheme.themeSource = mode
-    return config.theme
+    return nativeTheme.shouldUseDarkColors
   })
 }
 

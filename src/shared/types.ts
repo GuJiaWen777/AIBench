@@ -140,7 +140,7 @@ export interface AibenchApi {
   }
   theme: {
     get: () => Promise<boolean>
-    setMode: (mode: ThemeMode) => Promise<void>
+    setMode: (mode: ThemeMode) => Promise<boolean>
     onChanged: (callback: (isDark: boolean) => void) => () => void
   }
 }

@@ -13,7 +13,8 @@ export default function SettingsView({ config, onSaved }: Props): React.ReactEle
 
   const save = async (): Promise<void> => {
     await window.aibench.config.update(draft)
-    await window.aibench.theme.setMode(draft.theme)
+    const isDark = await window.aibench.theme.setMode(draft.theme)
+    document.documentElement.classList.toggle('dark', isDark)
     await onSaved()
     alert('设置已保存')
   }
