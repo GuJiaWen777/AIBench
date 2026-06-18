@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { app } from 'electron'
+import { randomUUID } from 'node:crypto'
 import fs from 'fs'
 import path from 'path'
 import type { PromptCategory, PromptItem } from '../shared/types'
@@ -22,12 +23,12 @@ export function getDb(): DatabaseSync {
       tags TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
-    )
+    );
 
     CREATE TABLE IF NOT EXISTS prompt_categories (
       name TEXT PRIMARY KEY,
       created_at TEXT NOT NULL
-    )
+    );
   `)
   return db
 }
@@ -89,7 +90,7 @@ export function getPrompt(id: string): PromptItem | null {
 
 export function createPrompt(title: string, body: string, tags: string[]): PromptItem {
   const now = new Date().toISOString()
-  const id = crypto.randomUUID()
+  const id = randomUUID()
   ensureCategories(tags)
   getDb()
     .prepare(

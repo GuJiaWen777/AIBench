@@ -60,11 +60,21 @@ export default function PromptsView(): React.ReactElement {
   }
 
   const createNew = async (): Promise<void> => {
-    const tags =
-      activeCategory !== 'all' && activeCategory !== 'uncategorized' ? [activeCategory] : []
-    const item = await window.aibench.prompts.create('新 Prompt', '', tags)
-    await loadList()
-    openPrompt(item)
+    try {
+      const tags =
+        activeCategory !== 'all' && activeCategory !== 'uncategorized' ? [activeCategory] : []
+      const item = await window.aibench.prompts.create('新 Prompt', '', tags)
+      const [list, nextCategories] = await Promise.all([
+        window.aibench.prompts.list(''),
+        window.aibench.prompts.listCategories()
+      ])
+      setSearch('')
+      setPrompts(list)
+      setCategories(nextCategories)
+      openPrompt(item)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '新建 Prompt 失败')
+    }
   }
 
   const save = async (): Promise<void> => {
