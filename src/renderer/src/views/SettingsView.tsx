@@ -13,10 +13,15 @@ export default function SettingsView({ config, onSaved }: Props): React.ReactEle
 
   const save = async (): Promise<void> => {
     await window.aibench.config.update(draft)
-    const isDark = await window.aibench.theme.setMode(draft.theme)
-    document.documentElement.classList.toggle('dark', isDark)
     await onSaved()
     alert('设置已保存')
+  }
+
+  const setTheme = async (theme: ThemeMode): Promise<void> => {
+    setDraft((current) => ({ ...current, theme }))
+    const isDark = await window.aibench.theme.setMode(theme)
+    document.documentElement.classList.toggle('dark', isDark)
+    await onSaved()
   }
 
   const pickPath = async (key: 'archivePath' | 'exportPath'): Promise<void> => {
@@ -59,18 +64,27 @@ export default function SettingsView({ config, onSaved }: Props): React.ReactEle
 
       <section className="card mt-6 space-y-4">
         <h3 className="font-medium">外观</h3>
-        <label className="block text-sm">
-          主题
-          <select
-            className="input mt-1"
-            value={draft.theme}
-            onChange={(e) => setDraft({ ...draft, theme: e.target.value as ThemeMode })}
-          >
-            <option value="system">跟随系统</option>
-            <option value="light">浅色</option>
-            <option value="dark">深色</option>
-          </select>
-        </label>
+        <div className="text-sm">
+          <span className="mb-2 block">主题</span>
+          <div className="segmented">
+            {[
+              { value: 'system', label: '跟随系统' },
+              { value: 'light', label: '浅色' },
+              { value: 'dark', label: '深色' }
+            ].map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={
+                  draft.theme === option.value ? 'segmented-active' : 'segmented-item'
+                }
+                onClick={() => void setTheme(option.value as ThemeMode)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="card mt-4 space-y-4">
