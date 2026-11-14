@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { extractPlaceholders } from '@shared/prompt-placeholders'
 import { normalizePromptTags } from '@shared/prompt-tags'
 import type { PromptCategory, PromptItem } from '@shared/types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+import PlaceholderDialog from '../components/PlaceholderDialog'
 import RevisionHistory from '../components/RevisionHistory'
 import { showError } from '../lib/errors'
 
@@ -33,6 +35,15 @@ export default function PromptsView(): React.ReactElement {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [copyPlaceholders, setCopyPlaceholders] = useState<string[] | null>(null)
+  const [copied, setCopied] = useState(false)
+  const copyTimer = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current) window.clearTimeout(copyTimer.current)
+    }
+  }, [])
 
   const loadList = useCallback(async () => {
     const [list, nextCategories] = await Promise.all([
@@ -64,7 +75,13 @@ export default function PromptsView(): React.ReactElement {
     setBaseline(JSON.stringify(prompt))
     setTagInput('')
     setHistoryOpen(false)
+    setCopyPlaceholders(null)
   }
+
+  const draftPlaceholders = useMemo(
+    () => (draft ? extractPlaceholders(draft.body) : []),
+    [draft]
+  )
 
   const isDirty =
     draft !== null && (JSON.stringify(draft) !== baseline || tagInput.trim() !== '')
@@ -72,6 +89,7 @@ export default function PromptsView(): React.ReactElement {
   const closeEditor = (): void => {
     if (isDirty && !confirm('有未保存的修改，确定关闭吗？')) return
     setHistoryOpen(false)
+    setCopyPlaceholders(null)
     setDraft(null)
   }
 
@@ -126,9 +144,25 @@ export default function PromptsView(): React.ReactElement {
     setDraft({ ...draft, tags: draft.tags.filter((item) => item !== tag) })
   }
 
+  const copyText = async (text: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      if (copyTimer.current) window.clearTimeout(copyTimer.current)
+      copyTimer.current = window.setTimeout(() => setCopied(false), 1500)
+    } catch (error) {
+      showError(error, '复制失败')
+    }
+  }
+
   const copyDraft = async (): Promise<void> => {
     if (!draft) return
-    await navigator.clipboard.writeText(draft.body)
+    const placeholders = extractPlaceholders(draft.body)
+    if (placeholders.length === 0) {
+      await copyText(draft.body)
+      return
+    }
+    setCopyPlaceholders(placeholders)
   }
 
   const exportOne = async (): Promise<void> => {
@@ -331,7 +365,7 @@ export default function PromptsView(): React.ReactElement {
                 </button>
               )}
               <button type="button" className="btn-secondary" onClick={() => void copyDraft()}>
-                复制
+                {copied ? '已复制' : '复制'}
               </button>
             </>
           }
@@ -413,6 +447,21 @@ export default function PromptsView(): React.ReactElement {
                 </div>
               </div>
 
+              <div className="mt-5 text-sm">
+                <span className="font-semibold text-slate-800 dark:text-slate-100">占位符</span>
+                {draftPlaceholders.length === 0 ? (
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    在正文中使用 {'{{name}}'} 定义复制时填写的变量。
+                  </p>
+                ) : (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {draftPlaceholders.map((name) => (
+                      <span key={name} className="tag tag-muted">{`{{${name}}}`}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="mt-5 rounded-md border border-slate-300 bg-white/80 p-3 dark:border-slate-800 dark:bg-slate-950/70">
                 <div className="meta-line">Updated</div>
                 <div className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
@@ -431,6 +480,18 @@ export default function PromptsView(): React.ReactElement {
             </label>
           </div>
         </Modal>
+      )}
+
+      {copyPlaceholders && draft && (
+        <PlaceholderDialog
+          placeholders={copyPlaceholders}
+          body={draft.body}
+          onClose={() => setCopyPlaceholders(null)}
+          onConfirm={(text) => {
+            void copyText(text)
+            setCopyPlaceholders(null)
+          }}
+        />
       )}
 
       {historyOpen && draft?.id && (

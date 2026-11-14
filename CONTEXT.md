@@ -52,6 +52,10 @@ _Avoid_: 同步, 备份（泛称）
 Prompt 每次保存前自动记录的快照，可在 Prompt Editor 中查看差异并恢复，每个 Prompt 最多保留 50 条。
 _Avoid_: 日志, 备份（泛称）
 
+**Placeholder**:
+Prompt 正文中以 `{{name}}` 标记的变量，复制时弹窗填写并替换为实际文本；留空则移除该变量。
+_Avoid_: 模板变量（泛称）, 参数
+
 **Export Directory**:
 Prompt 导出 Markdown 的目标文件夹，默认为 `%APPDATA%/AIBench/exports/prompts/`，用户可在设置中修改。
 _Avoid_: 备份目录, 输出路径
