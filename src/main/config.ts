@@ -2,7 +2,7 @@ import { app } from 'electron'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import type { AppConfig, Framework, ThemeMode } from '../shared/types'
+import type { AppConfig, Framework } from '../shared/types'
 
 const CONFIG_FILE = 'config.json'
 
@@ -82,28 +82,39 @@ function configPath(): string {
   return path.join(app.getPath('userData'), CONFIG_FILE)
 }
 
+function readConfigFile(filePath: string): AppConfig | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Partial<AppConfig>
+    return { ...defaultConfig(), ...raw, frameworks: mergeFrameworks(raw.frameworks) }
+  } catch {
+    return null
+  }
+}
+
 export function getConfig(): AppConfig {
   if (cached) return cached
   const filePath = configPath()
-  if (fs.existsSync(filePath)) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Partial<AppConfig>
-      cached = { ...defaultConfig(), ...raw, frameworks: mergeFrameworks(raw.frameworks) }
-      return cached
-    } catch {
-      cached = defaultConfig()
-      return cached
-    }
-  }
-  cached = defaultConfig()
-  saveConfig(cached)
+  const loaded = readConfigFile(filePath) ?? readConfigFile(`${filePath}.bak`)
+  cached = loaded ?? defaultConfig()
+  if (!loaded) saveConfig(cached)
   return cached
 }
 
 export function saveConfig(config: AppConfig): AppConfig {
   const dir = app.getPath('userData')
   fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(configPath(), JSON.stringify(config, null, 2), 'utf-8')
+  const target = configPath()
+  const temp = `${target}.tmp`
+  const serialized = JSON.stringify(config, null, 2)
+  fs.writeFileSync(temp, serialized, 'utf-8')
+  try {
+    if (fs.existsSync(target)) fs.copyFileSync(target, `${target}.bak`)
+    fs.renameSync(temp, target)
+  } catch {
+    // Some antivirus/file-lock setups reject rename; fall back to a direct write.
+    fs.writeFileSync(target, serialized, 'utf-8')
+    fs.rmSync(temp, { force: true })
+  }
   cached = config
   return config
 }
@@ -120,15 +131,7 @@ export function getFramework(frameworkId: string): Framework | undefined {
 
 export function ensureDataDirs(): void {
   const config = getConfig()
+  fs.mkdirSync(app.getPath('userData'), { recursive: true })
   fs.mkdirSync(config.archivePath, { recursive: true })
   fs.mkdirSync(config.exportPath, { recursive: true })
-  for (const fw of config.frameworks) {
-    fs.mkdirSync(fw.path, { recursive: true })
-  }
-}
-
-export function resolveThemeMode(mode: ThemeMode): 'light' | 'dark' {
-  if (mode === 'light') return 'light'
-  if (mode === 'dark') return 'dark'
-  return 'light'
 }

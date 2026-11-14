@@ -26,10 +26,41 @@ export interface SkillItem {
   path: string
   meta: SkillMeta
   modifiedAt: string
+  parseError?: string
 }
 
 export interface SkillDetail extends SkillItem {
   body: string
+  contentHash: string
+}
+
+export interface SkillCopy {
+  frameworkId: string
+  frameworkName: string
+  path: string
+  exists: boolean
+  modifiedAt: string | null
+  contentHash: string | null
+}
+
+export type SkillFileStatus = 'same' | 'modified' | 'onlyA' | 'onlyB'
+
+export interface SkillFileDiff {
+  path: string
+  status: SkillFileStatus
+  binary: boolean
+  aContent: string | null
+  bContent: string | null
+  aSize: number
+  bSize: number
+}
+
+export interface SkillDiff {
+  dirName: string
+  a: { frameworkId: string; frameworkName: string }
+  b: { frameworkId: string; frameworkName: string }
+  identical: boolean
+  files: SkillFileDiff[]
 }
 
 export interface ArchiveRecord {
@@ -54,7 +85,15 @@ export interface PromptItem {
 export interface PromptCategory {
   name: string
   promptCount: number
-  saved: boolean
+}
+
+export interface PromptRevision {
+  id: number
+  promptId: string
+  title: string
+  body: string
+  tags: string[]
+  createdAt: string
 }
 
 export interface InstallConflict {
@@ -87,7 +126,6 @@ export interface AibenchApi {
   config: {
     get: () => Promise<AppConfig>
     update: (partial: Partial<AppConfig>) => Promise<AppConfig>
-    pickDirectory: () => Promise<string | null>
   }
   skills: {
     list: (frameworkId: string) => Promise<SkillItem[]>
@@ -105,6 +143,9 @@ export interface AibenchApi {
     create: (input: CreateSkillInput) => Promise<SkillDetail>
     update: (input: UpdateSkillInput) => Promise<SkillDetail>
     remove: (frameworkId: string, dirName: string) => Promise<void>
+    copies: (dirName: string) => Promise<SkillCopy[]>
+    diff: (dirName: string, a: string, b: string) => Promise<SkillDiff>
+    sync: (source: string, dirName: string, targets: string[]) => Promise<InstallResult>
     onChanged: (callback: () => void) => () => void
     rescan: () => Promise<void>
   }
@@ -115,7 +156,6 @@ export interface AibenchApi {
   }
   prompts: {
     list: (query?: string, tag?: string) => Promise<PromptItem[]>
-    get: (id: string) => Promise<PromptItem | null>
     create: (title: string, body: string, tags: string[]) => Promise<PromptItem>
     update: (
       id: string,
@@ -124,7 +164,8 @@ export interface AibenchApi {
       tags: string[]
     ) => Promise<PromptItem>
     delete: (id: string) => Promise<void>
-    listTags: () => Promise<string[]>
+    listRevisions: (id: string) => Promise<PromptRevision[]>
+    restoreRevision: (promptId: string, revisionId: number) => Promise<PromptItem>
     listCategories: () => Promise<PromptCategory[]>
     createCategory: (name: string) => Promise<PromptCategory[]>
     renameCategory: (oldName: string, newName: string) => Promise<PromptCategory[]>
@@ -133,7 +174,6 @@ export interface AibenchApi {
     exportAll: () => Promise<string[]>
   }
   shell: {
-    openPath: (targetPath: string) => Promise<void>
     pickFile: (filters?: { name: string; extensions: string[] }[]) => Promise<string | null>
     pickDirectory: () => Promise<string | null>
     getFilePath: (file: File) => string

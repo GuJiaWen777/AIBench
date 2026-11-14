@@ -13,7 +13,7 @@ _Avoid_: 插件, 扩展, rule
 _Avoid_: 平台, 编辑器
 
 **Built-in Framework**:
-App 预置路径与规则的 Agent Framework，v1 为 Cursor 和 Claude Code。
+App 预置路径与规则的 Agent Framework，当前为 Codex CLI、Cursor、Claude Code、Hermes、OpenClaw。
 _Avoid_: 默认平台, 官方支持
 
 **Custom Framework**:
@@ -37,23 +37,27 @@ Skill 归档时产生的元数据，记录原路径、来源 Framework 和移除
 _Avoid_: 历史记录, 日志
 
 **Prompt**:
-用户自建的常用指令文本，含标题、正文和标签，存储于 App 本地数据库。
+用户自建的常用指令文本，含标题、正文和分类，存储于 App 本地数据库。
 _Avoid_: 模板, snippet, 话术
 
-**Tag**:
-用户自定义的短标签，用于给 Prompt 分类和筛选，可自由创建、可复用。
-_Avoid_: 分类, 文件夹, label
+**Category**:
+用户自定义的分类名称，用于给 Prompt 归类与筛选，可自由创建、可复用；界面上显示为"分类"。
+_Avoid_: 文件夹, label, tag
 
 **Export**:
 将 Prompt 从数据库导出为 Markdown 文件，便于肉眼阅读、备份或纳入版本管理；支持单条和全部导出，导出目录可在设置中自定义。
 _Avoid_: 同步, 备份（泛称）
+
+**Revision**:
+Prompt 每次保存前自动记录的快照，可在 Prompt Editor 中查看差异并恢复，每个 Prompt 最多保留 50 条。
+_Avoid_: 日志, 备份（泛称）
 
 **Export Directory**:
 Prompt 导出 Markdown 的目标文件夹，默认为 `%APPDATA%/AIBench/exports/prompts/`，用户可在设置中修改。
 _Avoid_: 备份目录, 输出路径
 
 **Workspace**:
-App 主界面区域，由侧边栏切换 Skills、Prompts、Archive、Settings 四个视图。
+App 主界面区域，由侧边栏切换 Skills、Prompts、Settings 三个视图；Archive 是 Skills 视图内的标签页。
 _Avoid_: 页面, 模块
 
 **Framework View**:
@@ -65,8 +69,8 @@ _Avoid_: 分 tab, 平台页
 _Avoid_: 安装, 同步副本
 
 **Prompt Editor**:
-Prompts 视图中的主从布局：左侧列表选中项，右侧就地编辑标题、标签和正文。
-_Avoid_: 弹窗编辑, 详情页
+Prompts 视图中的弹窗编辑器：编辑标题、分类和正文，顶部可复制正文，底部可导出或删除；关闭时如有未保存修改会提示。
+_Avoid_: 详情页, 侧边栏编辑
 
 **Data Directory**:
 App 存放本地数据库、配置和 Archive 的根目录，默认为 `%APPDATA%/AIBench/`。

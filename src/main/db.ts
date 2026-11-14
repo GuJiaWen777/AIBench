@@ -3,7 +3,10 @@ import { app } from 'electron'
 import { randomUUID } from 'node:crypto'
 import fs from 'fs'
 import path from 'path'
-import type { PromptCategory, PromptItem } from '../shared/types'
+import { normalizePromptTags } from '../shared/prompt-tags'
+import type { PromptCategory, PromptItem, PromptRevision } from '../shared/types'
+
+const MAX_REVISIONS_PER_PROMPT = 50
 
 let db: DatabaseSync | null = null
 
@@ -29,8 +32,29 @@ export function getDb(): DatabaseSync {
       name TEXT PRIMARY KEY,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS prompt_revisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      prompt_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      tags TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_prompt_revisions_prompt
+      ON prompt_revisions (prompt_id, id);
   `)
   return db
+}
+
+function parseTags(raw: string): string[] {
+  try {
+    const value = JSON.parse(raw) as unknown
+    return Array.isArray(value) ? value.filter((tag): tag is string => typeof tag === 'string') : []
+  } catch {
+    return []
+  }
 }
 
 function rowToPrompt(row: {
@@ -45,10 +69,61 @@ function rowToPrompt(row: {
     id: row.id,
     title: row.title,
     body: row.body,
-    tags: JSON.parse(row.tags) as string[],
+    tags: parseTags(row.tags),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
+}
+
+let transactionDepth = 0
+
+function withTransaction<T>(fn: () => T): T {
+  const database = getDb()
+  if (transactionDepth > 0) {
+    transactionDepth += 1
+    try {
+      return fn()
+    } finally {
+      transactionDepth -= 1
+    }
+  }
+
+  database.exec('BEGIN IMMEDIATE')
+  transactionDepth = 1
+  try {
+    const result = fn()
+    database.exec('COMMIT')
+    return result
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  } finally {
+    transactionDepth = 0
+  }
+}
+
+function insertRevision(prompt: PromptItem): void {
+  const database = getDb()
+  database
+    .prepare(
+      'INSERT INTO prompt_revisions (prompt_id, title, body, tags, created_at) VALUES (?, ?, ?, ?, ?)'
+    )
+    .run(
+      prompt.id,
+      prompt.title,
+      prompt.body,
+      JSON.stringify(prompt.tags),
+      new Date().toISOString()
+    )
+  database
+    .prepare(
+      `DELETE FROM prompt_revisions
+       WHERE prompt_id = ?
+         AND id < (
+           SELECT id FROM prompt_revisions WHERE prompt_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?
+         )`
+    )
+    .run(prompt.id, prompt.id, MAX_REVISIONS_PER_PROMPT - 1)
 }
 
 export function listPrompts(query?: string, tag?: string): PromptItem[] {
@@ -91,12 +166,13 @@ export function getPrompt(id: string): PromptItem | null {
 export function createPrompt(title: string, body: string, tags: string[]): PromptItem {
   const now = new Date().toISOString()
   const id = randomUUID()
-  ensureCategories(tags)
+  const normalizedTags = normalizePromptTags(tags)
+  ensureCategories(normalizedTags)
   getDb()
     .prepare(
       'INSERT INTO prompts (id, title, body, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
     )
-    .run(id, title, body, JSON.stringify(tags), now, now)
+    .run(id, title, body, JSON.stringify(normalizedTags), now, now)
   return getPrompt(id)!
 }
 
@@ -104,25 +180,63 @@ export function updatePrompt(
   id: string,
   title: string,
   body: string,
-  tags: string[]
+  tags: string[],
+  recordRevision = true
 ): PromptItem {
+  const existing = getPrompt(id)
+  if (!existing) throw new Error('PROMPT_NOT_FOUND')
   const now = new Date().toISOString()
-  ensureCategories(tags)
-  getDb()
-    .prepare('UPDATE prompts SET title = ?, body = ?, tags = ?, updated_at = ? WHERE id = ?')
-    .run(title, body, JSON.stringify(tags), now, id)
-  return getPrompt(id)!
+  const normalizedTags = normalizePromptTags(tags)
+  const changed =
+    existing.title !== title ||
+    existing.body !== body ||
+    JSON.stringify(existing.tags) !== JSON.stringify(normalizedTags)
+  return withTransaction(() => {
+    if (recordRevision && changed) insertRevision(existing)
+    ensureCategories(normalizedTags)
+    getDb()
+      .prepare('UPDATE prompts SET title = ?, body = ?, tags = ?, updated_at = ? WHERE id = ?')
+      .run(title, body, JSON.stringify(normalizedTags), now, id)
+    return getPrompt(id)!
+  })
 }
 
 export function deletePrompt(id: string): void {
-  getDb().prepare('DELETE FROM prompts WHERE id = ?').run(id)
+  withTransaction(() => {
+    getDb().prepare('DELETE FROM prompt_revisions WHERE prompt_id = ?').run(id)
+    getDb().prepare('DELETE FROM prompts WHERE id = ?').run(id)
+  })
 }
 
-export function listTags(): string[] {
-  const prompts = listPrompts()
-  const set = new Set<string>()
-  for (const p of prompts) for (const t of p.tags) set.add(t)
-  return [...set].sort((a, b) => a.localeCompare(b, 'zh-CN'))
+export function listRevisions(promptId: string): PromptRevision[] {
+  const rows = getDb()
+    .prepare('SELECT * FROM prompt_revisions WHERE prompt_id = ? ORDER BY id DESC')
+    .all(promptId) as Array<{
+    id: number
+    prompt_id: string
+    title: string
+    body: string
+    tags: string
+    created_at: string
+  }>
+  return rows.map((row) => ({
+    id: row.id,
+    promptId: row.prompt_id,
+    title: row.title,
+    body: row.body,
+    tags: parseTags(row.tags),
+    createdAt: row.created_at
+  }))
+}
+
+export function restoreRevision(promptId: string, revisionId: number): PromptItem {
+  const row = getDb()
+    .prepare('SELECT * FROM prompt_revisions WHERE id = ? AND prompt_id = ?')
+    .get(revisionId, promptId) as
+    | { id: number; title: string; body: string; tags: string }
+    | undefined
+  if (!row) throw new Error('REVISION_NOT_FOUND')
+  return updatePrompt(promptId, row.title, row.body, parseTags(row.tags), true)
 }
 
 function normalizeCategoryName(name: string): string {
@@ -144,7 +258,6 @@ export function listCategories(): PromptCategory[] {
   const savedRows = getDb()
     .prepare('SELECT name FROM prompt_categories ORDER BY name ASC')
     .all() as Array<{ name: string }>
-  const saved = new Set(savedRows.map((row) => row.name))
   const counts = new Map<string, number>()
 
   for (const prompt of listPrompts()) {
@@ -153,14 +266,10 @@ export function listCategories(): PromptCategory[] {
     }
   }
 
-  const names = new Set([...saved, ...counts.keys()])
+  const names = new Set([...savedRows.map((row) => row.name), ...counts.keys()])
   return [...names]
     .sort((a, b) => a.localeCompare(b, 'zh-CN'))
-    .map((name) => ({
-      name,
-      promptCount: counts.get(name) ?? 0,
-      saved: saved.has(name)
-    }))
+    .map((name) => ({ name, promptCount: counts.get(name) ?? 0 }))
 }
 
 export function createCategory(name: string): PromptCategory[] {
@@ -178,32 +287,38 @@ export function renameCategory(oldName: string, newName: string): PromptCategory
   if (!from || !to) throw new Error('INVALID_CATEGORY_NAME')
   if (from === to) return listCategories()
 
-  const existing = listPrompts()
-  for (const prompt of existing) {
-    if (!prompt.tags.includes(from)) continue
-    const tags = [...new Set(prompt.tags.map((tag) => (tag === from ? to : tag)))]
-    updatePrompt(prompt.id, prompt.title, prompt.body, tags)
-  }
+  return withTransaction(() => {
+    for (const prompt of listPrompts()) {
+      if (!prompt.tags.includes(from)) continue
+      const tags = [...new Set(prompt.tags.map((tag) => (tag === from ? to : tag)))]
+      updatePrompt(prompt.id, prompt.title, prompt.body, tags, false)
+    }
 
-  getDb().prepare('DELETE FROM prompt_categories WHERE name = ?').run(from)
-  createCategory(to)
-  return listCategories()
+    getDb().prepare('DELETE FROM prompt_categories WHERE name = ?').run(from)
+    getDb()
+      .prepare('INSERT OR IGNORE INTO prompt_categories (name, created_at) VALUES (?, ?)')
+      .run(to, new Date().toISOString())
+    return listCategories()
+  })
 }
 
 export function deleteCategory(name: string): PromptCategory[] {
   const target = normalizeCategoryName(name)
   if (!target) throw new Error('INVALID_CATEGORY_NAME')
 
-  for (const prompt of listPrompts()) {
-    if (!prompt.tags.includes(target)) continue
-    updatePrompt(
-      prompt.id,
-      prompt.title,
-      prompt.body,
-      prompt.tags.filter((tag) => tag !== target)
-    )
-  }
+  return withTransaction(() => {
+    for (const prompt of listPrompts()) {
+      if (!prompt.tags.includes(target)) continue
+      updatePrompt(
+        prompt.id,
+        prompt.title,
+        prompt.body,
+        prompt.tags.filter((tag) => tag !== target),
+        false
+      )
+    }
 
-  getDb().prepare('DELETE FROM prompt_categories WHERE name = ?').run(target)
-  return listCategories()
+    getDb().prepare('DELETE FROM prompt_categories WHERE name = ?').run(target)
+    return listCategories()
+  })
 }

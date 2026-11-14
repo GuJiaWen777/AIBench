@@ -4,6 +4,11 @@ import { getConfig } from './config'
 import { getPrompt, listPrompts } from './db'
 import { slugify } from './skill-utils'
 
+function yamlString(value: string): string {
+  // JSON string literals are valid YAML double-quoted scalars.
+  return JSON.stringify(value)
+}
+
 function promptToMarkdown(prompt: {
   title: string
   body: string
@@ -11,13 +16,13 @@ function promptToMarkdown(prompt: {
   createdAt: string
   updatedAt: string
 }): string {
-  const tags = prompt.tags.map((t) => `"${t}"`).join(', ')
+  const tags = prompt.tags.map(yamlString).join(', ')
   return [
     '---',
-    `title: ${prompt.title}`,
+    `title: ${yamlString(prompt.title)}`,
     `tags: [${tags}]`,
-    `created_at: ${prompt.createdAt}`,
-    `updated_at: ${prompt.updatedAt}`,
+    `created_at: ${yamlString(prompt.createdAt)}`,
+    `updated_at: ${yamlString(prompt.updatedAt)}`,
     '---',
     '',
     prompt.body

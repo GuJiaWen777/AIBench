@@ -3,6 +3,8 @@ import { normalizePromptTags } from '@shared/prompt-tags'
 import type { PromptCategory, PromptItem } from '@shared/types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+import RevisionHistory from '../components/RevisionHistory'
+import { showError } from '../lib/errors'
 
 type CategorySelection = 'all' | 'uncategorized' | string
 
@@ -26,9 +28,11 @@ export default function PromptsView(): React.ReactElement {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<CategorySelection>('all')
   const [draft, setDraft] = useState<PromptItem | null>(null)
+  const [baseline, setBaseline] = useState('')
   const [tagInput, setTagInput] = useState('')
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const loadList = useCallback(async () => {
     const [list, nextCategories] = await Promise.all([
@@ -41,7 +45,7 @@ export default function PromptsView(): React.ReactElement {
   }, [search])
 
   useEffect(() => {
-    void loadList()
+    void loadList().catch((error) => showError(error, '读取 Prompt 失败'))
   }, [loadList])
 
   const visiblePrompts = useMemo(() => {
@@ -55,41 +59,59 @@ export default function PromptsView(): React.ReactElement {
   const uncategorizedCount = prompts.filter((prompt) => prompt.tags.length === 0).length
   const categoryNames = categories.map((category) => category.name)
 
-  const openPrompt = (prompt: PromptItem): void => {
+  const openEditor = (prompt: PromptItem): void => {
     setDraft({ ...prompt })
+    setBaseline(JSON.stringify(prompt))
     setTagInput('')
+    setHistoryOpen(false)
   }
 
-  const createNew = async (): Promise<void> => {
-    try {
-      const tags =
-        activeCategory !== 'all' && activeCategory !== 'uncategorized' ? [activeCategory] : []
-      const item = await window.aibench.prompts.create('新 Prompt', '', tags)
-      const [list, nextCategories] = await Promise.all([
-        window.aibench.prompts.list(''),
-        window.aibench.prompts.listCategories()
-      ])
-      setSearch('')
-      setPrompts(list)
-      setCategories(nextCategories)
-      openPrompt(item)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '新建 Prompt 失败')
+  const isDirty =
+    draft !== null && (JSON.stringify(draft) !== baseline || tagInput.trim() !== '')
+
+  const closeEditor = (): void => {
+    if (isDirty && !confirm('有未保存的修改，确定关闭吗？')) return
+    setHistoryOpen(false)
+    setDraft(null)
+  }
+
+  const openFromCard = (prompt: PromptItem): void => {
+    if (draft && draft.id !== prompt.id && isDirty && !confirm('当前 Prompt 有未保存的修改，确定切换吗？')) {
+      return
     }
+    openEditor(prompt)
   }
 
-  const save = async (): Promise<void> => {
-    if (!draft) return
+  const createNew = (): void => {
+    const tags =
+      activeCategory !== 'all' && activeCategory !== 'uncategorized' ? [activeCategory] : []
+    if (search) setSearch('')
+    const now = new Date().toISOString()
+    openEditor({
+      id: '',
+      title: '新 Prompt',
+      body: '',
+      tags,
+      createdAt: now,
+      updatedAt: now
+    })
+  }
+
+  const saveDraft = async (): Promise<PromptItem | null> => {
+    if (!draft) return null
     const tags = normalizePromptTags([...draft.tags, tagInput])
-    const updated = await window.aibench.prompts.update(
-      draft.id,
-      draft.title,
-      draft.body,
-      tags
-    )
-    setTagInput('')
-    await loadList()
-    openPrompt(updated)
+    try {
+      const saved = draft.id
+        ? await window.aibench.prompts.update(draft.id, draft.title, draft.body, tags)
+        : await window.aibench.prompts.create(draft.title, draft.body, tags)
+      setTagInput('')
+      await loadList()
+      openEditor(saved)
+      return saved
+    } catch (error) {
+      showError(error, '保存 Prompt 失败')
+      return null
+    }
   }
 
   const addTag = (): void => {
@@ -111,40 +133,66 @@ export default function PromptsView(): React.ReactElement {
 
   const exportOne = async (): Promise<void> => {
     if (!draft) return
-    const path = await window.aibench.prompts.exportOne(draft.id)
-    alert(`已导出到：${path}`)
+    const saved = await saveDraft()
+    if (!saved) return
+    try {
+      const path = await window.aibench.prompts.exportOne(saved.id)
+      alert(`已导出到：${path}`)
+    } catch (error) {
+      showError(error, '导出失败')
+    }
   }
 
   const exportAll = async (): Promise<void> => {
-    const paths = await window.aibench.prompts.exportAll()
-    alert(`已导出 ${paths.length} 个文件`)
+    try {
+      const paths = await window.aibench.prompts.exportAll()
+      alert(`已导出 ${paths.length} 个文件`)
+    } catch (error) {
+      showError(error, '导出全部 Prompt 失败')
+    }
   }
 
   const confirmDelete = async (): Promise<void> => {
     if (!deleteId) return
-    await window.aibench.prompts.delete(deleteId)
-    if (draft?.id === deleteId) setDraft(null)
-    setDeleteId(null)
-    await loadList()
+    try {
+      await window.aibench.prompts.delete(deleteId)
+      if (draft?.id === deleteId) setDraft(null)
+      setDeleteId(null)
+      await loadList()
+    } catch (error) {
+      showError(error, '删除 Prompt 失败')
+    }
   }
 
   const createCategory = async (name: string): Promise<void> => {
-    const next = await window.aibench.prompts.createCategory(name)
-    setCategories(next)
+    try {
+      const next = await window.aibench.prompts.createCategory(name)
+      setCategories(next)
+    } catch (error) {
+      showError(error, '创建分类失败')
+    }
   }
 
   const renameCategory = async (oldName: string, newName: string): Promise<void> => {
-    const next = await window.aibench.prompts.renameCategory(oldName, newName)
-    setCategories(next)
-    if (activeCategory === oldName) setActiveCategory(newName)
-    await loadList()
+    try {
+      const next = await window.aibench.prompts.renameCategory(oldName, newName)
+      setCategories(next)
+      if (activeCategory === oldName) setActiveCategory(newName)
+      await loadList()
+    } catch (error) {
+      showError(error, '重命名分类失败')
+    }
   }
 
   const deleteCategory = async (name: string): Promise<void> => {
-    const next = await window.aibench.prompts.deleteCategory(name)
-    setCategories(next)
-    if (activeCategory === name) setActiveCategory('all')
-    await loadList()
+    try {
+      const next = await window.aibench.prompts.deleteCategory(name)
+      setCategories(next)
+      if (activeCategory === name) setActiveCategory('all')
+      await loadList()
+    } catch (error) {
+      showError(error, '删除分类失败')
+    }
   }
 
   return (
@@ -159,7 +207,7 @@ export default function PromptsView(): React.ReactElement {
             <button type="button" className="btn-secondary" onClick={() => void exportAll()}>
               导出全部
             </button>
-            <button type="button" className="btn-primary" onClick={() => void createNew()}>
+            <button type="button" className="btn-primary" onClick={createNew}>
               新建 Prompt
             </button>
           </div>
@@ -229,11 +277,11 @@ export default function PromptsView(): React.ReactElement {
                   tabIndex={0}
                   className="card group relative min-h-[190px] cursor-pointer"
                   title="打开 Prompt 详情"
-                  onClick={() => openPrompt(prompt)}
+                  onClick={() => openFromCard(prompt)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault()
-                      openPrompt(prompt)
+                      openFromCard(prompt)
                     }
                   }}
                 >
@@ -269,23 +317,40 @@ export default function PromptsView(): React.ReactElement {
       {draft && (
         <Modal
           open
-          title="编辑 Prompt"
-          onClose={() => setDraft(null)}
+          title={draft.id ? '编辑 Prompt' : '新建 Prompt'}
+          onClose={closeEditor}
           headerActions={
-            <button type="button" className="btn-secondary" onClick={() => void copyDraft()}>
-              复制
-            </button>
+            <>
+              {draft.id && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  历史
+                </button>
+              )}
+              <button type="button" className="btn-secondary" onClick={() => void copyDraft()}>
+                复制
+              </button>
+            </>
           }
           panelClassName="max-w-5xl"
           footer={
             <>
-              <button type="button" className="btn-danger" onClick={() => setDeleteId(draft.id)}>
-                删除
-              </button>
+              {draft.id && (
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={() => setDeleteId(draft.id)}
+                >
+                  删除
+                </button>
+              )}
               <button type="button" className="btn-secondary" onClick={() => void exportOne()}>
                 导出
               </button>
-              <button type="button" className="btn-primary" onClick={() => void save()}>
+              <button type="button" className="btn-primary" onClick={() => void saveDraft()}>
                 保存
               </button>
             </>
@@ -366,6 +431,18 @@ export default function PromptsView(): React.ReactElement {
             </label>
           </div>
         </Modal>
+      )}
+
+      {historyOpen && draft?.id && (
+        <RevisionHistory
+          promptId={draft.id}
+          current={draft}
+          onClose={() => setHistoryOpen(false)}
+          onRestored={(restored) => {
+            openEditor(restored)
+            void loadList()
+          }}
+        />
       )}
 
       {manageCategoriesOpen && (

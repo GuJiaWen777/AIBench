@@ -15,8 +15,10 @@ import {
   buildSkillMd,
   copyDir,
   findSkillRoots,
+  hashSkillDir,
   isValidDirName,
-  readSkillFromDir
+  readSkillFromDir,
+  resolveSkillDir
 } from './skill-utils'
 
 export function listSkills(frameworkId: string): SkillItem[] {
@@ -34,7 +36,8 @@ export function listSkills(frameworkId: string): SkillItem[] {
       frameworkName: fw.name,
       path: skillDir,
       meta: data.meta,
-      modifiedAt: data.modifiedAt
+      modifiedAt: data.modifiedAt,
+      parseError: data.parseError
     })
   }
   return items.sort((a, b) => a.dirName.localeCompare(b.dirName, 'zh-CN'))
@@ -43,7 +46,7 @@ export function listSkills(frameworkId: string): SkillItem[] {
 export function getSkill(frameworkId: string, dirName: string): SkillDetail | null {
   const fw = getFramework(frameworkId)
   if (!fw) return null
-  const skillDir = path.join(fw.path, dirName)
+  const skillDir = resolveSkillDir(fw.path, dirName)
   const data = readSkillFromDir(skillDir)
   if (!data) return null
   return {
@@ -53,7 +56,9 @@ export function getSkill(frameworkId: string, dirName: string): SkillDetail | nu
     path: skillDir,
     meta: data.meta,
     modifiedAt: data.modifiedAt,
-    body: data.body
+    body: data.body,
+    parseError: data.parseError,
+    contentHash: hashSkillDir(skillDir)
   }
 }
 
@@ -64,8 +69,8 @@ function installOne(
 ): { ok: true; dirName: string } | { ok: false; conflict: InstallConflict } {
   const fw = getFramework(frameworkId)
   if (!fw) throw new Error('FRAMEWORK_NOT_FOUND')
-  const dirName = path.basename(sourceDir)
-  const target = path.join(fw.path, dirName)
+  const dirName = path.basename(path.resolve(sourceDir))
+  const target = resolveSkillDir(fw.path, dirName)
   fs.mkdirSync(fw.path, { recursive: true })
   if (fs.existsSync(target) && !overwrite) {
     return { ok: false, conflict: { dirName, targetPath: target } }
@@ -126,7 +131,7 @@ export function createSkill(input: CreateSkillInput): SkillDetail {
 export function updateSkill(input: UpdateSkillInput): SkillDetail {
   const fw = getFramework(input.frameworkId)
   if (!fw) throw new Error('FRAMEWORK_NOT_FOUND')
-  const skillDir = path.join(fw.path, input.dirName)
+  const skillDir = resolveSkillDir(fw.path, input.dirName)
   if (!fs.existsSync(skillDir)) throw new Error('SKILL_NOT_FOUND')
   const content = buildSkillMd(
     { name: input.name, description: input.description },
@@ -139,13 +144,13 @@ export function updateSkill(input: UpdateSkillInput): SkillDetail {
 export function removeSkillToArchive(frameworkId: string, dirName: string): void {
   const fw = getFramework(frameworkId)
   if (!fw) throw new Error('FRAMEWORK_NOT_FOUND')
-  const skillDir = path.join(fw.path, dirName)
+  const skillDir = resolveSkillDir(fw.path, dirName)
   if (!fs.existsSync(skillDir)) throw new Error('SKILL_NOT_FOUND')
   const config = getConfig()
   fs.mkdirSync(config.archivePath, { recursive: true })
   const archiveId = `${Date.now()}-${dirName}`
   const dest = path.join(config.archivePath, archiveId)
-  fs.renameSync(skillDir, dest)
+  moveDirectory(skillDir, dest)
   const meta = readSkillFromDir(dest)
   const record = {
     id: archiveId,
@@ -156,6 +161,18 @@ export function removeSkillToArchive(frameworkId: string, dirName: string): void
     meta: meta?.meta ?? { name: dirName, description: '' }
   }
   fs.writeFileSync(path.join(dest, '.archive.json'), JSON.stringify(record, null, 2), 'utf-8')
+}
+
+function moveDirectory(source: string, target: string): void {
+  try {
+    fs.renameSync(source, target)
+    return
+  } catch (error) {
+    // The archive directory is configurable and may live on another drive.
+    if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error
+  }
+  fs.cpSync(source, target, { recursive: true })
+  fs.rmSync(source, { recursive: true, force: true })
 }
 
 export function listFrameworkPaths(): string[] {

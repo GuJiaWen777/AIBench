@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { AppConfig, Framework, ThemeMode } from '@shared/types'
+import { showError } from '../lib/errors'
 
 interface Props {
   config: AppConfig
@@ -12,9 +13,13 @@ export default function SettingsView({ config, onSaved }: Props): React.ReactEle
   const [newFwPath, setNewFwPath] = useState('')
 
   const save = async (): Promise<void> => {
-    await window.aibench.config.update(draft)
-    await onSaved()
-    alert('设置已保存')
+    try {
+      await window.aibench.config.update(draft)
+      await onSaved()
+      alert('设置已保存')
+    } catch (error) {
+      showError(error, '保存设置失败')
+    }
   }
 
   const setTheme = async (theme: ThemeMode): Promise<void> => {
@@ -25,12 +30,12 @@ export default function SettingsView({ config, onSaved }: Props): React.ReactEle
   }
 
   const pickPath = async (key: 'archivePath' | 'exportPath'): Promise<void> => {
-    const dir = await window.aibench.config.pickDirectory()
+    const dir = await window.aibench.shell.pickDirectory()
     if (dir) setDraft({ ...draft, [key]: dir })
   }
 
   const pickFrameworkPath = async (index: number): Promise<void> => {
-    const dir = await window.aibench.config.pickDirectory()
+    const dir = await window.aibench.shell.pickDirectory()
     if (!dir) return
     const frameworks = [...draft.frameworks]
     frameworks[index] = { ...frameworks[index], path: dir }

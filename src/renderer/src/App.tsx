@@ -25,7 +25,7 @@ export default function App(): React.ReactElement {
 
   if (!config) {
     return (
-      <div className="flex h-screen items-center justify-center text-zinc-500">加载中…</div>
+      <div className="flex h-screen items-center justify-center text-slate-500">加载中…</div>
     )
   }
 

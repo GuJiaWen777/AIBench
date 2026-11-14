@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import type { ArchiveRecord, InstallResult } from '../shared/types'
 import { getConfig } from './config'
-import { copyDir, readSkillFromDir } from './skill-utils'
+import { copyDir, readSkillFromDir, resolveSkillDir } from './skill-utils'
 import { getFramework } from './config'
 
 export function listArchive(): ArchiveRecord[] {
@@ -14,12 +14,23 @@ export function listArchive(): ArchiveRecord[] {
     const archiveDir = path.join(archivePath, entry.name)
     const metaFile = path.join(archiveDir, '.archive.json')
     if (fs.existsSync(metaFile)) {
-      const raw = JSON.parse(fs.readFileSync(metaFile, 'utf-8')) as Omit<
-        ArchiveRecord,
-        'archivePath'
-      >
-      records.push({ ...raw, archivePath: archiveDir })
-      continue
+      try {
+        const raw = JSON.parse(fs.readFileSync(metaFile, 'utf-8')) as Partial<ArchiveRecord>
+        if (typeof raw.id === 'string' && typeof raw.dirName === 'string') {
+          records.push({
+            id: raw.id,
+            dirName: raw.dirName,
+            removedFrom: raw.removedFrom ?? '未知',
+            originalPath: raw.originalPath ?? '',
+            removedAt: raw.removedAt ?? fs.statSync(archiveDir).mtime.toISOString(),
+            archivePath: archiveDir,
+            meta: raw.meta ?? { name: raw.dirName, description: '' }
+          })
+          continue
+        }
+      } catch {
+        // Fall through and derive a record from the archived skill itself.
+      }
     }
     const skill = readSkillFromDir(archiveDir)
     records.push({
@@ -48,7 +59,7 @@ export function restoreFromArchive(
     const fw = getFramework(fwId)
     if (!fw) continue
     fs.mkdirSync(fw.path, { recursive: true })
-    const target = path.join(fw.path, record.dirName)
+    const target = resolveSkillDir(fw.path, record.dirName)
     if (fs.existsSync(target) && !overwrite) {
       conflicts.push({ dirName: record.dirName, targetPath: target })
       continue

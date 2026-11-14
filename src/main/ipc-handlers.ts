@@ -1,24 +1,25 @@
-import { ipcMain, dialog, shell, nativeTheme } from 'electron'
+import { ipcMain, dialog, nativeTheme } from 'electron'
 import { getConfig, updateConfig, ensureDataDirs } from './config'
 import * as skillService from './skill-service'
+import * as skillCompare from './skill-compare'
 import * as archiveService from './archive-service'
 import * as promptDb from './db'
 import * as exportService from './export-service'
 import { restartSkillWatcher, notifySkillsChanged } from './watcher'
 import type { AppConfig, ThemeMode } from '../shared/types'
 
+function frameworkSignature(config: AppConfig): string {
+  return config.frameworks.map((framework) => `${framework.id}|${framework.path}`).join('\n')
+}
+
 export function registerIpcHandlers(): void {
   ipcMain.handle('config:get', () => getConfig())
 
   ipcMain.handle('config:update', (_e, partial: Partial<AppConfig>) => {
+    const before = frameworkSignature(getConfig())
     const next = updateConfig(partial)
-    restartSkillWatcher()
+    if (frameworkSignature(next) !== before) restartSkillWatcher()
     return next
-  })
-
-  ipcMain.handle('config:pickDirectory', async () => {
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
-    return result.canceled ? null : (result.filePaths[0] ?? null)
   })
 
   ipcMain.handle('skills:list', (_e, frameworkId: string) =>
@@ -58,6 +59,23 @@ export function registerIpcHandlers(): void {
     notifySkillsChanged()
   })
 
+  ipcMain.handle('skills:copies', (_e, dirName: string) =>
+    skillCompare.listSkillCopies(dirName)
+  )
+
+  ipcMain.handle('skills:diff', (_e, dirName: string, a: string, b: string) =>
+    skillCompare.diffSkillCopies(dirName, a, b)
+  )
+
+  ipcMain.handle(
+    'skills:sync',
+    (_e, source: string, dirName: string, targets: string[]) => {
+      const result = skillCompare.syncSkillCopies(source, dirName, targets)
+      if (result.installed.length > 0) notifySkillsChanged()
+      return result
+    }
+  )
+
   ipcMain.handle('skills:rescan', () => {
     notifySkillsChanged()
   })
@@ -81,8 +99,6 @@ export function registerIpcHandlers(): void {
     promptDb.listPrompts(query, tag)
   )
 
-  ipcMain.handle('prompts:get', (_e, id: string) => promptDb.getPrompt(id))
-
   ipcMain.handle('prompts:create', (_e, title: string, body: string, tags: string[]) =>
     promptDb.createPrompt(title, body, tags)
   )
@@ -95,7 +111,11 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('prompts:delete', (_e, id: string) => promptDb.deletePrompt(id))
 
-  ipcMain.handle('prompts:listTags', () => promptDb.listTags())
+  ipcMain.handle('prompts:listRevisions', (_e, id: string) => promptDb.listRevisions(id))
+
+  ipcMain.handle('prompts:restoreRevision', (_e, promptId: string, revisionId: number) =>
+    promptDb.restoreRevision(promptId, revisionId)
+  )
 
   ipcMain.handle('prompts:listCategories', () => promptDb.listCategories())
 
@@ -114,10 +134,6 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('prompts:exportOne', (_e, id: string) => exportService.exportPrompt(id))
 
   ipcMain.handle('prompts:exportAll', () => exportService.exportAllPrompts())
-
-  ipcMain.handle('shell:openPath', (_e, targetPath: string) => {
-    shell.openPath(targetPath)
-  })
 
   ipcMain.handle('shell:pickFile', async (_e, filters?) => {
     const result = await dialog.showOpenDialog({

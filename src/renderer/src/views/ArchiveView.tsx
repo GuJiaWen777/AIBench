@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AppConfig, ArchiveRecord } from '@shared/types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+import { showError } from '../lib/errors'
 
 interface Props {
   config: AppConfig
@@ -15,7 +16,11 @@ export default function ArchiveView({ config, embedded = false }: Props): React.
   const [selectedFrameworks, setSelectedFrameworks] = useState<string[]>([])
 
   const load = useCallback(async () => {
-    setRecords(await window.aibench.archive.list())
+    try {
+      setRecords(await window.aibench.archive.list())
+    } catch (error) {
+      showError(error, '读取归档失败')
+    }
   }, [])
 
   useEffect(() => {
@@ -30,51 +35,59 @@ export default function ArchiveView({ config, embedded = false }: Props): React.
 
   const doRestore = async (overwrite = false): Promise<void> => {
     if (!restoreTarget || selectedFrameworks.length === 0) return
-    const result = await window.aibench.archive.restore(
-      restoreTarget.id,
-      selectedFrameworks,
-      overwrite
-    )
-    if (result.conflicts.length > 0) {
-      const ok = confirm(`「${result.conflicts[0].dirName}」已存在，是否覆盖？`)
-      if (ok) await doRestore(true)
-      return
+    try {
+      const result = await window.aibench.archive.restore(
+        restoreTarget.id,
+        selectedFrameworks,
+        overwrite
+      )
+      if (result.conflicts.length > 0) {
+        const names = result.conflicts.map((conflict) => `「${conflict.dirName}」`).join('、')
+        if (confirm(`${names} 已存在，是否覆盖？`)) await doRestore(true)
+        return
+      }
+      setRestoreTarget(null)
+      setSelectedFrameworks([])
+      await load()
+    } catch (error) {
+      showError(error, '恢复 Skill 失败')
     }
-    setRestoreTarget(null)
-    setSelectedFrameworks([])
-    await load()
   }
 
   const doDelete = async (): Promise<void> => {
     if (!deleteTarget) return
-    await window.aibench.archive.deletePermanent(deleteTarget.id)
-    setDeleteTarget(null)
-    await load()
+    try {
+      await window.aibench.archive.deletePermanent(deleteTarget.id)
+      setDeleteTarget(null)
+      await load()
+    } catch (error) {
+      showError(error, '彻底删除失败')
+    }
   }
 
   return (
     <div className="flex h-full flex-col">
       {!embedded && (
-        <header className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+        <header className="border-b border-slate-200 px-6 py-4 dark:border-slate-800">
           <h2 className="text-xl font-semibold">归档</h2>
-          <p className="mt-1 text-sm text-zinc-500">已移除的 Skill，可恢复或彻底删除</p>
+          <p className="mt-1 text-sm text-slate-500">已移除的 Skill，可恢复或彻底删除</p>
         </header>
       )}
       <div className={`flex-1 overflow-y-auto ${embedded ? 'p-0' : 'p-6'}`}>
         {records.length === 0 ? (
-          <p className="text-zinc-500">归档为空</p>
+          <p className="text-slate-500">归档为空</p>
         ) : (
           <div className="space-y-3">
             {records.map((r) => (
               <div key={r.id} className="card flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="font-medium">{r.meta.name || r.dirName}</div>
-                  <div className="mt-1 text-xs text-zinc-500">{r.dirName}</div>
-                  <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                  <div className="mt-1 text-xs text-slate-500">{r.dirName}</div>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
                     来源：{r.removedFrom}
                   </p>
-                  <p className="text-sm text-zinc-500">原路径：{r.originalPath || '—'}</p>
-                  <p className="text-sm text-zinc-500">
+                  <p className="text-sm text-slate-500">原路径：{r.originalPath || '—'}</p>
+                  <p className="text-sm text-slate-500">
                     移除时间：{new Date(r.removedAt).toLocaleString('zh-CN')}
                   </p>
                 </div>
@@ -119,7 +132,7 @@ export default function ArchiveView({ config, embedded = false }: Props): React.
             </button>
           }
         >
-          <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">选择要恢复到的 Framework：</p>
+          <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">选择要恢复到的 Framework：</p>
           <div className="space-y-2">
             {config.frameworks.map((fw) => (
               <label key={fw.id} className="flex items-center gap-2 text-sm">

@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AppConfig, CreateSkillInput, SkillDetail, SkillItem } from '@shared/types'
+import type {
+  AppConfig,
+  CreateSkillInput,
+  SkillCopy,
+  SkillDetail,
+  SkillDiff,
+  SkillItem
+} from '@shared/types'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
+import SkillDiffView from '../components/SkillDiffView'
 import ArchiveView from './ArchiveView'
+import { showError } from '../lib/errors'
 
 interface Props {
   config: AppConfig
@@ -15,6 +24,8 @@ export default function SkillsView({ config }: Props): React.ReactElement {
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [editSkill, setEditSkill] = useState<SkillDetail | null>(null)
+  const [copies, setCopies] = useState<SkillCopy[]>([])
+  const [diff, setDiff] = useState<SkillDiff | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<SkillItem | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -30,6 +41,8 @@ export default function SkillsView({ config }: Props): React.ReactElement {
       } else {
         setSkills(await window.aibench.skills.list(frameworkId))
       }
+    } catch (error) {
+      showError(error, '读取 Skill 列表失败')
     } finally {
       setLoading(false)
     }
@@ -55,24 +68,96 @@ export default function SkillsView({ config }: Props): React.ReactElement {
     )
   })
 
+  const closeSkill = (): void => {
+    setEditSkill(null)
+    setCopies([])
+    setDiff(null)
+  }
+
+  const refreshCopies = async (dirName: string): Promise<void> => {
+    try {
+      setCopies(await window.aibench.skills.copies(dirName))
+    } catch (error) {
+      showError(error, '读取 Framework 副本失败')
+    }
+  }
+
   const openSkill = async (item: SkillItem): Promise<void> => {
-    const detail = await window.aibench.skills.get(item.frameworkId, item.dirName)
-    if (detail) setEditSkill(detail)
+    try {
+      const detail = await window.aibench.skills.get(item.frameworkId, item.dirName)
+      if (!detail) return
+      setEditSkill(detail)
+      setDiff(null)
+      await refreshCopies(detail.dirName)
+    } catch (error) {
+      showError(error, '打开 Skill 失败')
+    }
+  }
+
+  const syncCopies = async (targetIds: string[]): Promise<void> => {
+    if (!editSkill || targetIds.length === 0) return
+    try {
+      await window.aibench.skills.sync(editSkill.frameworkId, editSkill.dirName, targetIds)
+      await refreshCopies(editSkill.dirName)
+      await load()
+    } catch (error) {
+      showError(error, '同步 Skill 失败')
+    }
+  }
+
+  const syncTo = async (copy: SkillCopy): Promise<void> => {
+    if (!editSkill) return
+    const action = copy.exists ? '覆盖' : '复制到'
+    if (!confirm(`用当前版本${action} ${copy.frameworkName}？`)) return
+    await syncCopies([copy.frameworkId])
+  }
+
+  const openDiff = async (copy: SkillCopy): Promise<void> => {
+    if (!editSkill) return
+    try {
+      setDiff(
+        await window.aibench.skills.diff(
+          editSkill.dirName,
+          editSkill.frameworkId,
+          copy.frameworkId
+        )
+      )
+    } catch (error) {
+      showError(error, '读取差异失败')
+    }
+  }
+
+  const syncAllDiffering = async (): Promise<void> => {
+    if (!editSkill) return
+    const targets = copies
+      .filter((copy) => copy.frameworkId !== editSkill.frameworkId)
+      .filter((copy) => !copy.exists || copy.contentHash !== editSkill.contentHash)
+      .map((copy) => copy.frameworkId)
+    if (targets.length === 0) return
+    if (!confirm(`将当前版本同步到 ${targets.length} 个 Framework？已有副本会被覆盖。`)) return
+    await syncCopies(targets)
+  }
+
+  const confirmConflicts = (conflicts: { dirName: string }[]): boolean => {
+    const names = conflicts.map((conflict) => `「${conflict.dirName}」`).join('、')
+    return confirm(`${names} 已存在，是否覆盖？`)
   }
 
   const installToCurrent = async (sourcePath: string, overwrite = false): Promise<void> => {
     if (frameworkId === 'all') return
-    const result = await window.aibench.skills.installFromPath(
-      sourcePath,
-      [frameworkId],
-      overwrite
-    )
-    if (result.conflicts.length > 0) {
-      const c = result.conflicts[0]
-      const ok = confirm(`「${c.dirName}」已存在，是否覆盖？`)
-      if (ok) await installToCurrent(sourcePath, true)
-    } else {
-      await load()
+    try {
+      const result = await window.aibench.skills.installFromPath(
+        sourcePath,
+        [frameworkId],
+        overwrite
+      )
+      if (result.conflicts.length > 0) {
+        if (confirmConflicts(result.conflicts)) await installToCurrent(sourcePath, true)
+      } else {
+        await load()
+      }
+    } catch (error) {
+      showError(error, '安装 Skill 失败')
     }
   }
 
@@ -84,14 +169,17 @@ export default function SkillsView({ config }: Props): React.ReactElement {
 
   const handlePickZip = async (): Promise<void> => {
     if (frameworkId === 'all') return
-    const zip = await window.aibench.shell.pickFile([{ name: 'Zip', extensions: ['zip'] }])
-    if (!zip) return
-    const result = await window.aibench.skills.installFromZip(zip, [frameworkId])
-    if (result.conflicts.length > 0) {
-      const ok = confirm(`「${result.conflicts[0].dirName}」已存在，是否覆盖？`)
-      if (ok) await window.aibench.skills.installFromZip(zip, [frameworkId], true)
+    try {
+      const zip = await window.aibench.shell.pickFile([{ name: 'Zip', extensions: ['zip'] }])
+      if (!zip) return
+      const result = await window.aibench.skills.installFromZip(zip, [frameworkId])
+      if (result.conflicts.length > 0 && confirmConflicts(result.conflicts)) {
+        await window.aibench.skills.installFromZip(zip, [frameworkId], true)
+      }
+      await load()
+    } catch (error) {
+      showError(error, '安装 Zip 失败')
     }
-    await load()
   }
 
   const onDrop = async (e: React.DragEvent): Promise<void> => {
@@ -100,38 +188,56 @@ export default function SkillsView({ config }: Props): React.ReactElement {
     const file = e.dataTransfer.files[0]
     if (!file) return
     if (frameworkId === 'all') return
-    const filePath = window.aibench.shell.getFilePath(file)
-    if (file.name.endsWith('.zip')) {
-      const result = await window.aibench.skills.installFromZip(filePath, [frameworkId])
-      if (result.conflicts.length > 0) {
-        const ok = confirm(`「${result.conflicts[0].dirName}」已存在，是否覆盖？`)
-        if (ok) await window.aibench.skills.installFromZip(filePath, [frameworkId], true)
+    try {
+      const filePath = window.aibench.shell.getFilePath(file)
+      if (file.name.endsWith('.zip')) {
+        const result = await window.aibench.skills.installFromZip(filePath, [frameworkId])
+        if (result.conflicts.length > 0 && confirmConflicts(result.conflicts)) {
+          await window.aibench.skills.installFromZip(filePath, [frameworkId], true)
+        }
+      } else {
+        await installToCurrent(filePath)
       }
-    } else {
-      await installToCurrent(filePath)
+      await load()
+    } catch (error) {
+      showError(error, '安装 Skill 失败')
     }
-    await load()
   }
 
   const saveSkill = async (): Promise<void> => {
     if (!editSkill) return
-    await window.aibench.skills.update({
-      frameworkId: editSkill.frameworkId,
-      dirName: editSkill.dirName,
-      name: editSkill.meta.name,
-      description: editSkill.meta.description,
-      body: editSkill.body
-    })
-    setEditSkill(null)
-    await load()
+    try {
+      await window.aibench.skills.update({
+        frameworkId: editSkill.frameworkId,
+        dirName: editSkill.dirName,
+        name: editSkill.meta.name,
+        description: editSkill.meta.description,
+        body: editSkill.body
+      })
+      closeSkill()
+      await load()
+    } catch (error) {
+      showError(error, '保存 Skill 失败')
+    }
   }
 
   const confirmRemove = async (): Promise<void> => {
     if (!removeTarget) return
-    await window.aibench.skills.remove(removeTarget.frameworkId, removeTarget.dirName)
-    setRemoveTarget(null)
-    await load()
+    try {
+      await window.aibench.skills.remove(removeTarget.frameworkId, removeTarget.dirName)
+      setRemoveTarget(null)
+      await load()
+    } catch (error) {
+      showError(error, '移到归档失败')
+    }
   }
+
+  const otherCopies = editSkill
+    ? copies.filter((copy) => copy.frameworkId !== editSkill.frameworkId)
+    : []
+  const differingCopies = editSkill
+    ? otherCopies.filter((copy) => !copy.exists || copy.contentHash !== editSkill.contentHash)
+    : []
 
   return (
     <div
@@ -268,6 +374,11 @@ export default function SkillsView({ config }: Props): React.ReactElement {
                       <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
                         {skill.meta.description || '无描述'}
                       </p>
+                      {skill.parseError && (
+                        <p className="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-300">
+                          SKILL.md 解析失败，打开后可修复
+                        </p>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -281,18 +392,15 @@ export default function SkillsView({ config }: Props): React.ReactElement {
         <Modal
           open
           title={`编辑 Skill — ${editSkill.dirName}`}
-          onClose={() => setEditSkill(null)}
+          onClose={closeSkill}
           footer={
             <>
               <button
                 type="button"
                 className="btn-danger"
                 onClick={() => {
-                  const item = skills.find((s) => s.dirName === editSkill.dirName)
-                  if (item) {
-                    setEditSkill(null)
-                    setRemoveTarget(item)
-                  }
+                  setRemoveTarget(editSkill)
+                  closeSkill()
                 }}
               >
                 移到归档
@@ -304,6 +412,13 @@ export default function SkillsView({ config }: Props): React.ReactElement {
           }
         >
           <div className="space-y-3">
+            {editSkill.parseError && (
+              <div className="rounded-md border border-rose-300 bg-rose-50 p-3 text-xs leading-5 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
+                SKILL.md 的 frontmatter 解析失败：{editSkill.parseError}
+                <br />
+                保存后会按当前 name / description / 正文重新生成文件。
+              </div>
+            )}
             <label className="block text-sm">
               name
               <input
@@ -338,9 +453,93 @@ export default function SkillsView({ config }: Props): React.ReactElement {
                 onChange={(e) => setEditSkill({ ...editSkill, body: e.target.value })}
               />
             </label>
+
+            <div className="rounded-md border border-slate-300 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    其他 Framework 副本
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    同一目录名在其他 Framework 中的安装情况
+                  </div>
+                </div>
+                {differingCopies.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => void syncAllDiffering()}
+                  >
+                    同步到全部差异副本
+                  </button>
+                )}
+              </div>
+              <div className="mt-3 space-y-2">
+                {otherCopies.length === 0 ? (
+                  <p className="text-sm text-slate-500">没有其他 Framework。</p>
+                ) : (
+                  otherCopies.map((copy) => {
+                    const same = copy.exists && copy.contentHash === editSkill.contentHash
+                    return (
+                      <div
+                        key={copy.frameworkId}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-300 bg-white/70 p-2 dark:border-slate-800 dark:bg-slate-950/70"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                            {copy.frameworkName}
+                          </div>
+                          <div
+                            className={`mt-0.5 text-xs font-semibold ${
+                              !copy.exists
+                                ? 'text-slate-500'
+                                : same
+                                  ? 'text-emerald-600 dark:text-emerald-300'
+                                  : 'text-amber-600 dark:text-amber-300'
+                            }`}
+                          >
+                            {!copy.exists ? '未安装' : same ? '内容一致' : '内容不同'}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          {!copy.exists ? (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => void syncTo(copy)}
+                            >
+                              复制到此
+                            </button>
+                          ) : !same ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => void openDiff(copy)}
+                              >
+                                查看差异
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => void syncTo(copy)}
+                              >
+                                用当前版本覆盖
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
           </div>
         </Modal>
       )}
+
+      {diff && <SkillDiffView diff={diff} onClose={() => setDiff(null)} />}
 
       {createOpen && (
         <CreateSkillModal

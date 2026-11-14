@@ -4,8 +4,7 @@ import type { AibenchApi, AppConfig, ThemeMode } from '../shared/types'
 const api: AibenchApi = {
   config: {
     get: () => ipcRenderer.invoke('config:get'),
-    update: (partial: Partial<AppConfig>) => ipcRenderer.invoke('config:update', partial),
-    pickDirectory: () => ipcRenderer.invoke('config:pickDirectory')
+    update: (partial: Partial<AppConfig>) => ipcRenderer.invoke('config:update', partial)
   },
   skills: {
     list: (frameworkId) => ipcRenderer.invoke('skills:list', frameworkId),
@@ -17,6 +16,10 @@ const api: AibenchApi = {
     create: (input) => ipcRenderer.invoke('skills:create', input),
     update: (input) => ipcRenderer.invoke('skills:update', input),
     remove: (frameworkId, dirName) => ipcRenderer.invoke('skills:remove', frameworkId, dirName),
+    copies: (dirName) => ipcRenderer.invoke('skills:copies', dirName),
+    diff: (dirName, a, b) => ipcRenderer.invoke('skills:diff', dirName, a, b),
+    sync: (source, dirName, targets) =>
+      ipcRenderer.invoke('skills:sync', source, dirName, targets),
     onChanged: (callback) => {
       const handler = (): void => callback()
       ipcRenderer.on('skills:changed', handler)
@@ -32,12 +35,13 @@ const api: AibenchApi = {
   },
   prompts: {
     list: (query, tag) => ipcRenderer.invoke('prompts:list', query, tag),
-    get: (id) => ipcRenderer.invoke('prompts:get', id),
     create: (title, body, tags) => ipcRenderer.invoke('prompts:create', title, body, tags),
     update: (id, title, body, tags) =>
       ipcRenderer.invoke('prompts:update', id, title, body, tags),
     delete: (id) => ipcRenderer.invoke('prompts:delete', id),
-    listTags: () => ipcRenderer.invoke('prompts:listTags'),
+    listRevisions: (id) => ipcRenderer.invoke('prompts:listRevisions', id),
+    restoreRevision: (promptId, revisionId) =>
+      ipcRenderer.invoke('prompts:restoreRevision', promptId, revisionId),
     listCategories: () => ipcRenderer.invoke('prompts:listCategories'),
     createCategory: (name) => ipcRenderer.invoke('prompts:createCategory', name),
     renameCategory: (oldName, newName) =>
@@ -47,7 +51,6 @@ const api: AibenchApi = {
     exportAll: () => ipcRenderer.invoke('prompts:exportAll')
   },
   shell: {
-    openPath: (targetPath) => ipcRenderer.invoke('shell:openPath', targetPath),
     pickFile: (filters) => ipcRenderer.invoke('shell:pickFile', filters),
     pickDirectory: () => ipcRenderer.invoke('shell:pickDirectory'),
     getFilePath: (file) => webUtils.getPathForFile(file)
