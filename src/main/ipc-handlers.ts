@@ -1,12 +1,14 @@
-import { ipcMain, dialog, nativeTheme } from 'electron'
+import { app, ipcMain, dialog, nativeTheme } from 'electron'
 import { getConfig, updateConfig, ensureDataDirs } from './config'
 import * as skillService from './skill-service'
 import * as skillCompare from './skill-compare'
 import * as archiveService from './archive-service'
 import * as promptDb from './db'
 import * as exportService from './export-service'
+import * as backupService from './backup-service'
+import * as healthService from './health-service'
 import { restartSkillWatcher, notifySkillsChanged } from './watcher'
-import type { AppConfig, ThemeMode } from '../shared/types'
+import type { AppConfig, RestoreOptions, ThemeMode } from '../shared/types'
 
 function frameworkSignature(config: AppConfig): string {
   return config.frameworks.map((framework) => `${framework.id}|${framework.path}`).join('\n')
@@ -134,6 +136,43 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('prompts:exportOne', (_e, id: string) => exportService.exportPrompt(id))
 
   ipcMain.handle('prompts:exportAll', () => exportService.exportAllPrompts())
+
+  ipcMain.handle('backup:info', () => backupService.getBackupInfo())
+
+  ipcMain.handle('backup:create', (_e, options?: { includeSkills?: boolean }) =>
+    backupService.createBackup({ includeSkills: options?.includeSkills === true })
+  )
+
+  ipcMain.handle('backup:pick', () => backupService.pickBackupFile())
+
+  ipcMain.handle('backup:inspect', (_e, filePath: string) => {
+    if (typeof filePath !== 'string' || !filePath) throw new Error('BACKUP_SOURCE_MISSING')
+    return backupService.inspectBackup(filePath)
+  })
+
+  ipcMain.handle(
+    'backup:restore',
+    (_e, filePath: string, options?: Partial<RestoreOptions>) => {
+      if (typeof filePath !== 'string' || !filePath) throw new Error('BACKUP_SOURCE_MISSING')
+      const result = backupService.restoreBackup(filePath, options)
+      applyThemeFromConfig()
+      restartSkillWatcher()
+      notifySkillsChanged()
+      return result
+    }
+  )
+
+  ipcMain.handle('health:check', () => healthService.runHealthCheck())
+
+  ipcMain.handle('health:fix', (_e, issueId: string) => {
+    if (typeof issueId !== 'string' || !issueId) throw new Error('HEALTH_FIX_UNAVAILABLE')
+    return healthService.fixHealthIssue(issueId)
+  })
+
+  ipcMain.handle('app:relaunch', () => {
+    app.relaunch()
+    app.exit(0)
+  })
 
   ipcMain.handle('shell:pickFile', async (_e, filters?) => {
     const result = await dialog.showOpenDialog({

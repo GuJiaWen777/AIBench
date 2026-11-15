@@ -60,6 +60,18 @@ _Avoid_: 模板变量（泛称）, 参数
 Prompt 导出 Markdown 的目标文件夹，默认为 `%APPDATA%/AIBench/exports/prompts/`，用户可在设置中修改。
 _Avoid_: 备份目录, 输出路径
 
+**Backup**:
+把 Prompt 数据库、设置和 Archive 打包成的单个 zip，可选包含各 Framework 下已安装的 Skill；用于换机器或重装后的完整还原，与只能导出 Prompt 文本的 Export 不同。
+_Avoid_: 导出, 同步, 快照
+
+**Restore Safety Snapshot**:
+执行恢复前自动保存的当前数据库、配置与 Archive 副本，位于 Data Directory 下的 `restore-safety/`，恢复失败时也保留。
+_Avoid_: 备份（与 Backup 混用）, 回滚点
+
+**Health Check**:
+只读扫描 Framework 路径、Skill 文件、Archive Record 和 Prompt 数据库，按错误/警告/提示列出问题；用户可对安全项点击修复，修复前不会自动改动任何文件。
+_Avoid_: 自检, 诊断（泛称）
+
 **Workspace**:
 App 主界面区域，由侧边栏切换 Skills、Prompts、Settings 三个视图；Archive 是 Skills 视图内的标签页。
 _Avoid_: 页面, 模块

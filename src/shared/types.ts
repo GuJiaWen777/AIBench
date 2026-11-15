@@ -96,6 +96,96 @@ export interface PromptRevision {
   createdAt: string
 }
 
+export interface BackupCounts {
+  prompts: number
+  categories: number
+  revisions: number
+  archivedSkills: number
+  skills: number
+}
+
+export interface BackupFrameworkRef {
+  id: string
+  name: string
+  path: string
+}
+
+export interface BackupSkillRef {
+  frameworkId: string
+  dirName: string
+}
+
+export interface BackupManifest {
+  format: 'aibench-backup'
+  version: number
+  createdAt: string
+  appVersion: string
+  includeSkills: boolean
+  frameworks: BackupFrameworkRef[]
+  skills: BackupSkillRef[]
+  counts: BackupCounts
+}
+
+export interface BackupInfo {
+  dataDir: string
+  configPath: string
+  dbPath: string
+  archivePath: string
+}
+
+export interface BackupPreview {
+  path: string
+  size: number
+  manifest: BackupManifest
+  hasConfig: boolean
+  hasArchive: boolean
+}
+
+export interface BackupCreateResult {
+  path: string
+  size: number
+  manifest: BackupManifest
+}
+
+export interface RestoreOptions {
+  restoreConfig: boolean
+  restoreSkills: boolean
+  overwriteSkills: boolean
+}
+
+export type RestoreSkipReason = 'FRAMEWORK_NOT_FOUND' | 'TARGET_EXISTS' | 'MISSING_IN_BACKUP'
+
+export interface RestoreSkip {
+  frameworkId: string
+  dirName: string
+  reason: RestoreSkipReason
+}
+
+export interface RestoreResult {
+  manifest: BackupManifest
+  safetyBackupPath: string
+  archiveRestored: boolean
+  skillsInstalled: string[]
+  skillsSkipped: RestoreSkip[]
+}
+
+export type HealthSeverity = 'error' | 'warning' | 'info'
+
+export interface HealthIssue {
+  id: string
+  severity: HealthSeverity
+  code: string
+  title: string
+  detail: string
+  fixable: boolean
+}
+
+export interface HealthReport {
+  checkedAt: string
+  issues: HealthIssue[]
+  summary: { errors: number; warnings: number; infos: number; total: number }
+}
+
 export interface InstallConflict {
   dirName: string
   targetPath: string
@@ -172,6 +262,20 @@ export interface AibenchApi {
     deleteCategory: (name: string) => Promise<PromptCategory[]>
     exportOne: (id: string) => Promise<string>
     exportAll: () => Promise<string[]>
+  }
+  backup: {
+    info: () => Promise<BackupInfo>
+    create: (options: { includeSkills: boolean }) => Promise<BackupCreateResult | null>
+    pick: () => Promise<string | null>
+    inspect: (path: string) => Promise<BackupPreview>
+    restore: (path: string, options: RestoreOptions) => Promise<RestoreResult>
+  }
+  health: {
+    check: () => Promise<HealthReport>
+    fix: (issueId: string) => Promise<HealthReport>
+  }
+  app: {
+    relaunch: () => Promise<void>
   }
   shell: {
     pickFile: (filters?: { name: string; extensions: string[] }[]) => Promise<string | null>

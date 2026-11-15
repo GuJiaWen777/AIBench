@@ -50,6 +50,18 @@ test('parseSkillMd recovers a broken frontmatter so it stays editable', () => {
   assert.ok(parsed.parseError)
 })
 
+test('parseSkillMd keeps recovering when the same skill is read again', () => {
+  // gray-matter caches inputs before parsing; a failed parse used to poison the
+  // cache so later reads returned empty metadata instead of the fallback.
+  const content = '---\nname: demo\ndescription: Use when: x\n---\nbody text'
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const parsed = parseSkillMd(content)
+    assert.equal(parsed.meta.name, 'demo')
+    assert.equal(parsed.body, 'body text')
+    assert.ok(parsed.parseError, `attempt ${attempt} lost the parse error`)
+  }
+})
+
 test('copyDir refuses to copy a directory onto itself', () => {
   withTempDir((dir) => {
     const source = path.join(dir, 'skill-a')

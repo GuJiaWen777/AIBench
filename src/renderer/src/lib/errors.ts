@@ -9,7 +9,16 @@ const ERROR_MESSAGES: Record<string, string> = {
   ARCHIVE_NOT_FOUND: '找不到该归档记录。',
   PROMPT_NOT_FOUND: '找不到该 Prompt。',
   REVISION_NOT_FOUND: '找不到该历史版本。',
-  INVALID_CATEGORY_NAME: '分类名称不能为空。'
+  INVALID_CATEGORY_NAME: '分类名称不能为空。',
+  BACKUP_INVALID: '备份文件无效或已损坏。',
+  BACKUP_UNSUPPORTED_VERSION: '该备份由更高版本的 AIBench 创建，请先升级。',
+  BACKUP_ARCHIVE_UNSAFE: '备份中包含不安全的路径，已中止恢复。',
+  BACKUP_TOO_LARGE: '备份内容过大，已中止。可取消“包含已安装 Skill”后重试。',
+  BACKUP_DB_INVALID: '备份中的数据库无法通过完整性检查，已中止恢复。',
+  BACKUP_INVALID_PATH: '归档目录路径无效，已中止恢复。',
+  BACKUP_SOURCE_MISSING: '找不到备份文件。',
+  HEALTH_FIX_UNAVAILABLE: '该问题无法自动修复，已重新检查。',
+  HEALTH_FIX_FAILED: '修复失败，请检查文件权限或手动处理。'
 }
 
 function rawMessage(error: unknown): string {
@@ -20,6 +29,12 @@ function rawMessage(error: unknown): string {
 
 export function formatError(error: unknown, fallback = '操作失败，请重试。'): string {
   const raw = rawMessage(error)
+  const restoreMarker = 'RESTORE_FAILED:'
+  const restoreIndex = raw.indexOf(restoreMarker)
+  if (restoreIndex >= 0) {
+    const snapshot = raw.slice(restoreIndex + restoreMarker.length).trim()
+    return `恢复失败，已停止。恢复前的数据保存在：\n${snapshot}`
+  }
   for (const [code, message] of Object.entries(ERROR_MESSAGES)) {
     if (raw.includes(code)) return message
   }

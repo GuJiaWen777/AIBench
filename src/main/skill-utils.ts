@@ -45,7 +45,10 @@ function parseFrontmatterFallback(content: string): ParsedSkillMd | null {
 
 export function parseSkillMd(content: string): ParsedSkillMd {
   try {
-    const parsed = matter(content)
+    // Passing an options object skips gray-matter's internal cache. That cache
+    // stores the file before parsing, so a frontmatter error would poison it
+    // and later reads would silently return empty data instead of recovering.
+    const parsed = matter(content, {})
     const data = parsed.data as Record<string, unknown>
     return {
       meta: { name: textValue(data.name), description: textValue(data.description) },

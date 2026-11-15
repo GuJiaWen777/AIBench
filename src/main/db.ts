@@ -14,6 +14,10 @@ function dbPath(): string {
   return path.join(app.getPath('userData'), 'aibench.db')
 }
 
+export function getDbPath(): string {
+  return dbPath()
+}
+
 export function getDb(): DatabaseSync {
   if (db) return db
   fs.mkdirSync(app.getPath('userData'), { recursive: true })
@@ -46,6 +50,121 @@ export function getDb(): DatabaseSync {
       ON prompt_revisions (prompt_id, id);
   `)
   return db
+}
+
+export function closeDb(): void {
+  try {
+    db?.close()
+  } catch {
+    // Already closed or never opened; nothing to release.
+  }
+  db = null
+}
+
+export function getStats(): { prompts: number; categories: number; revisions: number } {
+  const database = getDb()
+  const count = (table: string): number => {
+    const row = database.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as
+      | { n: number | bigint }
+      | undefined
+    return Number(row?.n ?? 0)
+  }
+  return {
+    prompts: count('prompts'),
+    categories: count('prompt_categories'),
+    revisions: count('prompt_revisions')
+  }
+}
+
+/**
+ * Consistent snapshot of the live database, safe while the app keeps writing.
+ * `VACUUM INTO` writes a compact copy instead of copying a possibly half-written
+ * file with an open journal.
+ */
+export function exportSnapshot(target: string): void {
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  fs.rmSync(target, { force: true })
+  getDb().exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`)
+}
+
+export function checkIntegrity(): string {
+  const rows = getDb().prepare('PRAGMA integrity_check').all() as Array<Record<string, unknown>>
+  const messages = rows
+    .map((row) => String(Object.values(row)[0] ?? ''))
+    .filter((message) => message && message.toLowerCase() !== 'ok')
+  return messages.length === 0 ? 'ok' : messages.join('; ')
+}
+
+export function countOrphanRevisions(): number {
+  const row = getDb()
+    .prepare(
+      `SELECT COUNT(*) AS n FROM prompt_revisions r
+       LEFT JOIN prompts p ON p.id = r.prompt_id
+       WHERE p.id IS NULL`
+    )
+    .get() as { n: number | bigint } | undefined
+  return Number(row?.n ?? 0)
+}
+
+export function repairOrphanRevisions(): number {
+  const result = getDb()
+    .prepare('DELETE FROM prompt_revisions WHERE prompt_id NOT IN (SELECT id FROM prompts)')
+    .run()
+  return Number(result.changes)
+}
+
+export function listOverLimitPrompts(): Array<{ promptId: string; title: string; count: number }> {
+  const rows = getDb()
+    .prepare(
+      `SELECT r.prompt_id AS promptId, COUNT(*) AS n, p.title AS title
+       FROM prompt_revisions r
+       LEFT JOIN prompts p ON p.id = r.prompt_id
+       GROUP BY r.prompt_id
+       HAVING n > ?
+       ORDER BY n DESC`
+    )
+    .all(MAX_REVISIONS_PER_PROMPT) as Array<{ promptId: string; n: number | bigint; title: string | null }>
+  return rows.map((row) => ({
+    promptId: row.promptId,
+    title: row.title ?? row.promptId,
+    count: Number(row.n)
+  }))
+}
+
+export function trimRevisionsToLimit(): number {
+  const database = getDb()
+  const prompts = database
+    .prepare('SELECT DISTINCT prompt_id AS promptId FROM prompt_revisions')
+    .all() as Array<{ promptId: string }>
+  const trim = database.prepare(
+    `DELETE FROM prompt_revisions
+     WHERE prompt_id = ?
+       AND id < (
+         SELECT id FROM prompt_revisions WHERE prompt_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?
+       )`
+  )
+  let removed = 0
+  withTransaction(() => {
+    for (const prompt of prompts) {
+      removed += Number(
+        trim.run(prompt.promptId, prompt.promptId, MAX_REVISIONS_PER_PROMPT - 1).changes
+      )
+    }
+  })
+  return removed
+}
+
+export function listDuplicateTitles(): Array<{ title: string; count: number }> {
+  const rows = getDb()
+    .prepare(
+      `SELECT TRIM(title) AS title, COUNT(*) AS n
+       FROM prompts
+       GROUP BY LOWER(TRIM(title))
+       HAVING n > 1
+       ORDER BY n DESC`
+    )
+    .all() as Array<{ title: string; n: number | bigint }>
+  return rows.map((row) => ({ title: row.title, count: Number(row.n) }))
 }
 
 function parseTags(raw: string): string[] {

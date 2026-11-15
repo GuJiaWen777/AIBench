@@ -5,6 +5,16 @@ import { getConfig } from './config'
 import { copyDir, readSkillFromDir, resolveSkillDir } from './skill-utils'
 import { getFramework } from './config'
 
+/**
+ * Archive folders are named `${timestamp}-${dirName}`. When `.archive.json` is
+ * missing or unreadable, the original directory name is recovered from that
+ * prefix so a restore does not create a folder named after the timestamp.
+ */
+export function deriveArchiveDirName(folderName: string): string {
+  const match = /^\d{13}-(.+)$/.exec(folderName)
+  return match ? match[1] : folderName
+}
+
 export function listArchive(): ArchiveRecord[] {
   const { archivePath } = getConfig()
   if (!fs.existsSync(archivePath)) return []
@@ -32,15 +42,16 @@ export function listArchive(): ArchiveRecord[] {
         // Fall through and derive a record from the archived skill itself.
       }
     }
+    const dirName = deriveArchiveDirName(entry.name)
     const skill = readSkillFromDir(archiveDir)
     records.push({
       id: entry.name,
-      dirName: entry.name,
+      dirName,
       removedFrom: '未知',
       originalPath: '',
       removedAt: fs.statSync(archiveDir).mtime.toISOString(),
       archivePath: archiveDir,
-      meta: skill?.meta ?? { name: entry.name, description: '' }
+      meta: skill?.meta ?? { name: dirName, description: '' }
     })
   }
   return records.sort((a, b) => b.removedAt.localeCompare(a.removedAt))

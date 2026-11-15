@@ -77,9 +77,29 @@ function defaultConfig(): AppConfig {
 }
 
 let cached: AppConfig | null = null
+let configSource: 'file' | 'backup' | 'default' = 'default'
+let configInvalid = false
 
 function configPath(): string {
   return path.join(app.getPath('userData'), CONFIG_FILE)
+}
+
+export function configFilePath(): string {
+  return configPath()
+}
+
+export function dataDirPath(): string {
+  return app.getPath('userData')
+}
+
+export function getConfigStatus(): { source: 'file' | 'backup' | 'default'; invalid: boolean } {
+  getConfig()
+  return { source: configSource, invalid: configInvalid }
+}
+
+export function reloadConfig(): AppConfig {
+  cached = null
+  return getConfig()
 }
 
 function readConfigFile(filePath: string): AppConfig | null {
@@ -94,9 +114,26 @@ function readConfigFile(filePath: string): AppConfig | null {
 export function getConfig(): AppConfig {
   if (cached) return cached
   const filePath = configPath()
-  const loaded = readConfigFile(filePath) ?? readConfigFile(`${filePath}.bak`)
-  cached = loaded ?? defaultConfig()
-  if (!loaded) saveConfig(cached)
+  const primary = readConfigFile(filePath)
+  if (primary) {
+    cached = primary
+    configSource = 'file'
+    configInvalid = false
+    return cached
+  }
+
+  const fallback = readConfigFile(`${filePath}.bak`)
+  const invalid = fs.existsSync(filePath)
+  configSource = fallback ? 'backup' : 'default'
+  configInvalid = invalid
+  cached = fallback ?? defaultConfig()
+  if (!fallback) {
+    saveConfig(cached)
+    // saveConfig() reports a healthy file; keep the fallback status we just
+    // detected so the health check can still surface it.
+    configSource = 'default'
+    configInvalid = invalid
+  }
   return cached
 }
 
@@ -116,6 +153,8 @@ export function saveConfig(config: AppConfig): AppConfig {
     fs.rmSync(temp, { force: true })
   }
   cached = config
+  configSource = 'file'
+  configInvalid = false
   return config
 }
 

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import type { AppConfig, Framework, ThemeMode } from '@shared/types'
+import BackupRestoreSection from '../components/BackupRestoreSection'
+import HealthSection from '../components/HealthSection'
 import { showError } from '../lib/errors'
 
 interface Props {
@@ -26,6 +28,13 @@ export default function SettingsView({ config, onSaved }: Props): React.ReactEle
     setDraft((current) => ({ ...current, theme }))
     const isDark = await window.aibench.theme.setMode(theme)
     document.documentElement.classList.toggle('dark', isDark)
+    await onSaved()
+  }
+
+  const handleRestored = async (): Promise<void> => {
+    // A restore may replace config.json; drop any stale draft so saving the
+    // form later cannot overwrite the restored settings.
+    setDraft(await window.aibench.config.get())
     await onSaved()
   }
 
@@ -202,6 +211,10 @@ export default function SettingsView({ config, onSaved }: Props): React.ReactEle
               </div>
             </div>
           </section>
+
+          <BackupRestoreSection onRestored={handleRestored} />
+
+          <HealthSection />
 
           <div className="flex justify-end">
             <button type="button" className="btn-primary" onClick={() => void save()}>

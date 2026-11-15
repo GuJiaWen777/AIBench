@@ -50,6 +50,20 @@ const api: AibenchApi = {
     exportOne: (id) => ipcRenderer.invoke('prompts:exportOne', id),
     exportAll: () => ipcRenderer.invoke('prompts:exportAll')
   },
+  backup: {
+    info: () => ipcRenderer.invoke('backup:info'),
+    create: (options) => ipcRenderer.invoke('backup:create', options),
+    pick: () => ipcRenderer.invoke('backup:pick'),
+    inspect: (path) => ipcRenderer.invoke('backup:inspect', path),
+    restore: (path, options) => ipcRenderer.invoke('backup:restore', path, options)
+  },
+  health: {
+    check: () => ipcRenderer.invoke('health:check'),
+    fix: (issueId) => ipcRenderer.invoke('health:fix', issueId)
+  },
+  app: {
+    relaunch: () => ipcRenderer.invoke('app:relaunch')
+  },
   shell: {
     pickFile: (filters) => ipcRenderer.invoke('shell:pickFile', filters),
     pickDirectory: () => ipcRenderer.invoke('shell:pickDirectory'),
