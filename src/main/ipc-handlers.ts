@@ -1,200 +1,202 @@
 import { app, ipcMain, dialog, nativeTheme } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
 import { getConfig, updateConfig, ensureDataDirs } from './config'
 import * as skillService from './skill-service'
 import * as skillCompare from './skill-compare'
 import * as archiveService from './archive-service'
+import * as marketplaceService from './marketplace-service'
 import * as promptDb from './db'
 import * as exportService from './export-service'
 import * as backupService from './backup-service'
 import * as healthService from './health-service'
 import { restartSkillWatcher, notifySkillsChanged } from './watcher'
-import type { AppConfig, RestoreOptions, ThemeMode } from '../shared/types'
+import { hideQuickWindow } from './quick-launcher'
+import type { IpcArgs, IpcChannel, IpcResult } from '../shared/ipc'
+import type { AppConfig } from '../shared/types'
+
+type IpcHandler<C extends IpcChannel> = (
+  event: IpcMainInvokeEvent,
+  ...args: IpcArgs<C>
+) => IpcResult<C> | Promise<IpcResult<C>>
+
+/** One handler per contract channel; a missing channel is a compile error. */
+type IpcHandlers = { [C in IpcChannel]: IpcHandler<C> }
 
 function frameworkSignature(config: AppConfig): string {
   return config.frameworks.map((framework) => `${framework.id}|${framework.path}`).join('\n')
 }
 
 export function registerIpcHandlers(): void {
-  ipcMain.handle('config:get', () => getConfig())
+  const handlers: IpcHandlers = {
+    'config:get': () => getConfig(),
 
-  ipcMain.handle('config:update', (_e, partial: Partial<AppConfig>) => {
-    const before = frameworkSignature(getConfig())
-    const next = updateConfig(partial)
-    if (frameworkSignature(next) !== before) restartSkillWatcher()
-    return next
-  })
+    'config:update': (_e, partial) => {
+      const before = frameworkSignature(getConfig())
+      const next = updateConfig(partial)
+      if (frameworkSignature(next) !== before) restartSkillWatcher()
+      return next
+    },
 
-  ipcMain.handle('skills:list', (_e, frameworkId: string) =>
-    skillService.listSkills(frameworkId)
-  )
+    'skills:list': (_e, frameworkId) => skillService.listSkills(frameworkId),
 
-  ipcMain.handle('skills:get', (_e, frameworkId: string, dirName: string) =>
-    skillService.getSkill(frameworkId, dirName)
-  )
+    'skills:get': (_e, frameworkId, dirName) => skillService.getSkill(frameworkId, dirName),
 
-  ipcMain.handle(
-    'skills:installFromPath',
-    (_e, sourcePath: string, frameworkIds: string[], overwrite?: boolean) =>
-      skillService.installFromPath(sourcePath, frameworkIds, overwrite)
-  )
+    'skills:installFromPath': (_e, sourcePath, frameworkIds, overwrite) =>
+      skillService.installFromPath(sourcePath, frameworkIds, overwrite),
 
-  ipcMain.handle(
-    'skills:installFromZip',
-    (_e, zipPath: string, frameworkIds: string[], overwrite?: boolean) =>
-      skillService.installFromZip(zipPath, frameworkIds, overwrite)
-  )
+    'skills:installFromZip': (_e, zipPath, frameworkIds, overwrite) =>
+      skillService.installFromZip(zipPath, frameworkIds, overwrite),
 
-  ipcMain.handle('skills:create', (_e, input) => {
-    const result = skillService.createSkill(input)
-    notifySkillsChanged()
-    return result
-  })
+    'skills:create': (_e, input) => {
+      const result = skillService.createSkill(input)
+      notifySkillsChanged()
+      return result
+    },
 
-  ipcMain.handle('skills:update', (_e, input) => {
-    const result = skillService.updateSkill(input)
-    notifySkillsChanged()
-    return result
-  })
+    'skills:update': (_e, input) => {
+      const result = skillService.updateSkill(input)
+      notifySkillsChanged()
+      return result
+    },
 
-  ipcMain.handle('skills:remove', (_e, frameworkId: string, dirName: string) => {
-    skillService.removeSkillToArchive(frameworkId, dirName)
-    notifySkillsChanged()
-  })
+    'skills:remove': (_e, frameworkId, dirName) => {
+      skillService.removeSkillToArchive(frameworkId, dirName)
+      notifySkillsChanged()
+    },
 
-  ipcMain.handle('skills:copies', (_e, dirName: string) =>
-    skillCompare.listSkillCopies(dirName)
-  )
+    'skills:copies': (_e, dirName) => skillCompare.listSkillCopies(dirName),
 
-  ipcMain.handle('skills:diff', (_e, dirName: string, a: string, b: string) =>
-    skillCompare.diffSkillCopies(dirName, a, b)
-  )
+    'skills:diff': (_e, dirName, a, b) => skillCompare.diffSkillCopies(dirName, a, b),
 
-  ipcMain.handle(
-    'skills:sync',
-    (_e, source: string, dirName: string, targets: string[]) => {
+    'skills:sync': (_e, source, dirName, targets) => {
       const result = skillCompare.syncSkillCopies(source, dirName, targets)
       if (result.installed.length > 0) notifySkillsChanged()
       return result
-    }
-  )
+    },
 
-  ipcMain.handle('skills:rescan', () => {
-    notifySkillsChanged()
-  })
+    'skills:rescan': () => {
+      notifySkillsChanged()
+    },
 
-  ipcMain.handle('archive:list', () => archiveService.listArchive())
+    'marketplace:inspectGithub': (_e, url) => marketplaceService.inspectGithub(url),
 
-  ipcMain.handle(
-    'archive:restore',
-    (_e, id: string, frameworkIds: string[], overwrite?: boolean) => {
+    'marketplace:installGithub': (_e, sessionId, dirNames, frameworkIds, overwrite) => {
+      const result = marketplaceService.installGithub(
+        sessionId,
+        dirNames,
+        frameworkIds,
+        overwrite
+      )
+      if (result.installed.length > 0) notifySkillsChanged()
+      return result
+    },
+
+    'marketplace:cancelGithub': (_e, sessionId) => {
+      marketplaceService.cancelGithub(sessionId)
+    },
+
+    'archive:list': () => archiveService.listArchive(),
+
+    'archive:restore': (_e, id, frameworkIds, overwrite) => {
       const result = archiveService.restoreFromArchive(id, frameworkIds, overwrite)
       if (result.installed.length > 0) notifySkillsChanged()
       return result
-    }
-  )
+    },
 
-  ipcMain.handle('archive:deletePermanent', (_e, id: string) => {
-    archiveService.deleteArchivePermanent(id)
-  })
+    'archive:deletePermanent': (_e, id) => {
+      archiveService.deleteArchivePermanent(id)
+    },
 
-  ipcMain.handle('prompts:list', (_e, query?: string, tag?: string) =>
-    promptDb.listPrompts(query, tag)
-  )
+    'prompts:list': (_e, query, tag) => promptDb.listPrompts(query, tag),
 
-  ipcMain.handle('prompts:create', (_e, title: string, body: string, tags: string[]) =>
-    promptDb.createPrompt(title, body, tags)
-  )
+    'prompts:create': (_e, title, body, tags) => promptDb.createPrompt(title, body, tags),
 
-  ipcMain.handle(
-    'prompts:update',
-    (_e, id: string, title: string, body: string, tags: string[]) =>
-      promptDb.updatePrompt(id, title, body, tags)
-  )
+    'prompts:update': (_e, id, title, body, tags) =>
+      promptDb.updatePrompt(id, title, body, tags),
 
-  ipcMain.handle('prompts:delete', (_e, id: string) => promptDb.deletePrompt(id))
+    'prompts:delete': (_e, id) => promptDb.deletePrompt(id),
 
-  ipcMain.handle('prompts:listRevisions', (_e, id: string) => promptDb.listRevisions(id))
+    'prompts:listRevisions': (_e, id) => promptDb.listRevisions(id),
 
-  ipcMain.handle('prompts:restoreRevision', (_e, promptId: string, revisionId: number) =>
-    promptDb.restoreRevision(promptId, revisionId)
-  )
+    'prompts:restoreRevision': (_e, promptId, revisionId) =>
+      promptDb.restoreRevision(promptId, revisionId),
 
-  ipcMain.handle('prompts:listCategories', () => promptDb.listCategories())
+    'prompts:listCategories': () => promptDb.listCategories(),
 
-  ipcMain.handle('prompts:createCategory', (_e, name: string) =>
-    promptDb.createCategory(name)
-  )
+    'prompts:createCategory': (_e, name) => promptDb.createCategory(name),
 
-  ipcMain.handle('prompts:renameCategory', (_e, oldName: string, newName: string) =>
-    promptDb.renameCategory(oldName, newName)
-  )
+    'prompts:renameCategory': (_e, oldName, newName) =>
+      promptDb.renameCategory(oldName, newName),
 
-  ipcMain.handle('prompts:deleteCategory', (_e, name: string) =>
-    promptDb.deleteCategory(name)
-  )
+    'prompts:deleteCategory': (_e, name) => promptDb.deleteCategory(name),
 
-  ipcMain.handle('prompts:exportOne', (_e, id: string) => exportService.exportPrompt(id))
+    'prompts:exportOne': (_e, id) => exportService.exportPrompt(id),
 
-  ipcMain.handle('prompts:exportAll', () => exportService.exportAllPrompts())
+    'prompts:exportAll': () => exportService.exportAllPrompts(),
 
-  ipcMain.handle('backup:info', () => backupService.getBackupInfo())
+    'backup:info': () => backupService.getBackupInfo(),
 
-  ipcMain.handle('backup:create', (_e, options?: { includeSkills?: boolean }) =>
-    backupService.createBackup({ includeSkills: options?.includeSkills === true })
-  )
+    'backup:create': (_e, options) =>
+      backupService.createBackup({ includeSkills: options?.includeSkills === true }),
 
-  ipcMain.handle('backup:pick', () => backupService.pickBackupFile())
+    'backup:pick': () => backupService.pickBackupFile(),
 
-  ipcMain.handle('backup:inspect', (_e, filePath: string) => {
-    if (typeof filePath !== 'string' || !filePath) throw new Error('BACKUP_SOURCE_MISSING')
-    return backupService.inspectBackup(filePath)
-  })
+    'backup:inspect': (_e, filePath) => {
+      if (typeof filePath !== 'string' || !filePath) throw new Error('BACKUP_SOURCE_MISSING')
+      return backupService.inspectBackup(filePath)
+    },
 
-  ipcMain.handle(
-    'backup:restore',
-    (_e, filePath: string, options?: Partial<RestoreOptions>) => {
+    'backup:restore': (_e, filePath, options) => {
       if (typeof filePath !== 'string' || !filePath) throw new Error('BACKUP_SOURCE_MISSING')
       const result = backupService.restoreBackup(filePath, options)
       applyThemeFromConfig()
       restartSkillWatcher()
       notifySkillsChanged()
       return result
+    },
+
+    'health:check': () => healthService.runHealthCheck(),
+
+    'health:fix': (_e, issueId) => {
+      if (typeof issueId !== 'string' || !issueId) throw new Error('HEALTH_FIX_UNAVAILABLE')
+      return healthService.fixHealthIssue(issueId)
+    },
+
+    'app:relaunch': () => {
+      app.relaunch()
+      app.exit(0)
+    },
+
+    'quick:hide': () => {
+      hideQuickWindow()
+    },
+
+    'shell:pickFile': async (_e, filters) => {
+      const result = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: filters ?? [{ name: 'Zip', extensions: ['zip'] }]
+      })
+      return result.canceled ? null : (result.filePaths[0] ?? null)
+    },
+
+    'shell:pickDirectory': async () => {
+      const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+      return result.canceled ? null : (result.filePaths[0] ?? null)
+    },
+
+    'theme:get': () => nativeTheme.shouldUseDarkColors,
+
+    'theme:setMode': (_e, mode) => {
+      updateConfig({ theme: mode })
+      if (mode === 'system') nativeTheme.themeSource = 'system'
+      else nativeTheme.themeSource = mode
+      return nativeTheme.shouldUseDarkColors
     }
-  )
+  }
 
-  ipcMain.handle('health:check', () => healthService.runHealthCheck())
-
-  ipcMain.handle('health:fix', (_e, issueId: string) => {
-    if (typeof issueId !== 'string' || !issueId) throw new Error('HEALTH_FIX_UNAVAILABLE')
-    return healthService.fixHealthIssue(issueId)
-  })
-
-  ipcMain.handle('app:relaunch', () => {
-    app.relaunch()
-    app.exit(0)
-  })
-
-  ipcMain.handle('shell:pickFile', async (_e, filters?) => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: filters ?? [{ name: 'Zip', extensions: ['zip'] }]
-    })
-    return result.canceled ? null : (result.filePaths[0] ?? null)
-  })
-
-  ipcMain.handle('shell:pickDirectory', async () => {
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
-    return result.canceled ? null : (result.filePaths[0] ?? null)
-  })
-
-  ipcMain.handle('theme:get', () => nativeTheme.shouldUseDarkColors)
-
-  ipcMain.handle('theme:setMode', (_e, mode: ThemeMode) => {
-    updateConfig({ theme: mode })
-    if (mode === 'system') nativeTheme.themeSource = 'system'
-    else nativeTheme.themeSource = mode
-    return nativeTheme.shouldUseDarkColors
-  })
+  for (const [channel, handler] of Object.entries(handlers)) {
+    ipcMain.handle(channel, handler as (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown)
+  }
 }
 
 export function applyThemeFromConfig(): void {

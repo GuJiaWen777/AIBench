@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'fs'
 import path from 'path'
 import { normalizePromptTags } from '../shared/prompt-tags'
+import { migrate } from './db-migrations'
 import type { PromptCategory, PromptItem, PromptRevision } from '../shared/types'
 
 const MAX_REVISIONS_PER_PROMPT = 50
@@ -22,33 +23,7 @@ export function getDb(): DatabaseSync {
   if (db) return db
   fs.mkdirSync(app.getPath('userData'), { recursive: true })
   db = new DatabaseSync(dbPath())
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS prompts (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      body TEXT NOT NULL,
-      tags TEXT NOT NULL DEFAULT '[]',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS prompt_categories (
-      name TEXT PRIMARY KEY,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS prompt_revisions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      prompt_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      body TEXT NOT NULL,
-      tags TEXT NOT NULL DEFAULT '[]',
-      created_at TEXT NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_prompt_revisions_prompt
-      ON prompt_revisions (prompt_id, id);
-  `)
+  migrate(db)
   return db
 }
 
