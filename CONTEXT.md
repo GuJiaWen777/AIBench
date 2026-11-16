@@ -24,6 +24,10 @@ _Avoid_: 第三方平台, 插件
 包含一个或多个 Skill 的 zip 压缩包，安装时需解压并识别其中的 `SKILL.md` 结构。
 _Avoid_: 插件包, 安装包
 
+**GitHub Install**:
+通过 GitHub 仓库根目录或 `/tree/<分支>/<目录>` 链接下载并安装 Skill 的方式；安装前展示 `SKILL.md`、文件列表和脚本，App 只复制文件，不执行其中的内容。
+_Avoid_: 市场, 商店, 远程安装（泛指）
+
 **Skill Removal**:
 将 Skill 从目标框架目录移出并放入归档区，而非永久删除。
 _Avoid_: 卸载, 删除
@@ -73,8 +77,12 @@ _Avoid_: 备份（与 Backup 混用）, 回滚点
 _Avoid_: 自检, 诊断（泛称）
 
 **Workspace**:
-App 主界面区域，由侧边栏切换 Skills、Prompts、Settings 三个视图；Archive 是 Skills 视图内的标签页。
+App 主界面区域，顶部导航切换 Skills、Prompts 两个视图，右上角齿轮进入 Settings；Archive 是 Skills 视图内的标签页。
 _Avoid_: 页面, 模块
+
+**Quick Search**:
+托盘常驻的独立轻量窗口，通过全局快捷键唤起，输入即筛选 Prompt，回车复制正文；含 Placeholder 时先就地填写再复制。关闭主窗口后 App 仍在托盘运行。
+_Avoid_: 全局搜索, 命令面板, Spotlight
 
 **Framework View**:
 按 Agent Framework 分栏展示 Skill 列表；同一 Skill 在不同 Framework 中各自独立显示。
