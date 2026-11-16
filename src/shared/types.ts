@@ -196,6 +196,37 @@ export interface InstallResult {
   conflicts: InstallConflict[]
 }
 
+export interface GithubSkillFile {
+  path: string
+  size: number
+  /** Executable or source file the user should review before installing. */
+  isScript: boolean
+}
+
+export interface GithubSkillPreview {
+  dirName: string
+  name: string
+  description: string
+  relativePath: string
+  body: string
+  files: GithubSkillFile[]
+  fileCount: number
+  totalBytes: number
+  scriptCount: number
+  parseError?: string
+}
+
+export interface GithubPreview {
+  sessionId: string
+  repo: string
+  ref: string
+  subdir: string
+  skills: GithubSkillPreview[]
+  totalBytes: number
+  /** True when the repo contained more skills/files than the preview cap. */
+  truncated: boolean
+}
+
 export interface CreateSkillInput {
   frameworkId: string
   dirName: string
@@ -263,6 +294,16 @@ export interface AibenchApi {
     exportOne: (id: string) => Promise<string>
     exportAll: () => Promise<string[]>
   }
+  marketplace: {
+    inspectGithub: (url: string) => Promise<GithubPreview>
+    installGithub: (
+      sessionId: string,
+      dirNames: string[],
+      frameworkIds: string[],
+      overwrite?: boolean
+    ) => Promise<InstallResult>
+    cancelGithub: (sessionId: string) => Promise<void>
+  }
   backup: {
     info: () => Promise<BackupInfo>
     create: (options: { includeSkills: boolean }) => Promise<BackupCreateResult | null>
@@ -276,6 +317,10 @@ export interface AibenchApi {
   }
   app: {
     relaunch: () => Promise<void>
+  }
+  quick: {
+    hide: () => Promise<void>
+    onOpened: (callback: () => void) => () => void
   }
   shell: {
     pickFile: (filters?: { name: string; extensions: string[] }[]) => Promise<string | null>

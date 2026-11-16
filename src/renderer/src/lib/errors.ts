@@ -18,7 +18,17 @@ const ERROR_MESSAGES: Record<string, string> = {
   BACKUP_INVALID_PATH: '归档目录路径无效，已中止恢复。',
   BACKUP_SOURCE_MISSING: '找不到备份文件。',
   HEALTH_FIX_UNAVAILABLE: '该问题无法自动修复，已重新检查。',
-  HEALTH_FIX_FAILED: '修复失败，请检查文件权限或手动处理。'
+  HEALTH_FIX_FAILED: '修复失败，请检查文件权限或手动处理。',
+  GITHUB_URL_INVALID: '链接无效。请粘贴 github.com 仓库或 /tree/ 目录链接。',
+  GITHUB_REPO_NOT_FOUND: '找不到该仓库或分支，也可能是私有仓库。',
+  GITHUB_RATE_LIMITED: 'GitHub 请求过于频繁，请稍后再试。',
+  GITHUB_DOWNLOAD_FAILED: '下载仓库失败，请检查网络后重试。',
+  GITHUB_TOO_LARGE: '仓库文件过大，已中止下载或解压。',
+  GITHUB_ARCHIVE_UNSAFE: '仓库压缩包中包含不安全的路径，已中止。',
+  GITHUB_NO_SKILLS: '没有在该链接下找到包含 SKILL.md 的 Skill。',
+  GITHUB_SESSION_EXPIRED: '预览已过期，请重新获取仓库内容。',
+  GITHUB_NO_FRAMEWORK: '请至少选择一个目标 Framework。',
+  GITHUB_INVALID_REQUEST: '请求无效，请重新获取仓库预览。'
 }
 
 function rawMessage(error: unknown): string {

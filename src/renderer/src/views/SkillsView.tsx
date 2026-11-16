@@ -9,7 +9,9 @@ import type {
 } from '@shared/types'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
+import GithubInstallDialog from '../components/GithubInstallDialog'
 import SkillDiffView from '../components/SkillDiffView'
+import { ChevronRightIcon, SearchIcon } from '../components/icons'
 import ArchiveView from './ArchiveView'
 import { showError } from '../lib/errors'
 
@@ -27,6 +29,8 @@ export default function SkillsView({ config }: Props): React.ReactElement {
   const [copies, setCopies] = useState<SkillCopy[]>([])
   const [diff, setDiff] = useState<SkillDiff | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [githubOpen, setGithubOpen] = useState(false)
+  const [frameworkPrompt, setFrameworkPrompt] = useState<'create' | 'zip' | 'folder' | null>(null)
   const [removeTarget, setRemoveTarget] = useState<SkillItem | null>(null)
   const [dragOver, setDragOver] = useState(false)
 
@@ -143,16 +147,22 @@ export default function SkillsView({ config }: Props): React.ReactElement {
     return confirm(`${names} 已存在，是否覆盖？`)
   }
 
-  const installToCurrent = async (sourcePath: string, overwrite = false): Promise<void> => {
-    if (frameworkId === 'all') return
+  const installToCurrent = async (
+    sourcePath: string,
+    overwrite = false,
+    targetFrameworkId = frameworkId
+  ): Promise<void> => {
+    if (targetFrameworkId === 'all') return
     try {
       const result = await window.aibench.skills.installFromPath(
         sourcePath,
-        [frameworkId],
+        [targetFrameworkId],
         overwrite
       )
       if (result.conflicts.length > 0) {
-        if (confirmConflicts(result.conflicts)) await installToCurrent(sourcePath, true)
+        if (confirmConflicts(result.conflicts)) {
+          await installToCurrent(sourcePath, true, targetFrameworkId)
+        }
       } else {
         await load()
       }
@@ -161,25 +171,51 @@ export default function SkillsView({ config }: Props): React.ReactElement {
     }
   }
 
-  const handlePickFolder = async (): Promise<void> => {
-    if (frameworkId === 'all') return
+  const handlePickFolder = async (targetFrameworkId = frameworkId): Promise<void> => {
+    if (targetFrameworkId === 'all') return
     const dir = await window.aibench.shell.pickDirectory()
-    if (dir) await installToCurrent(dir)
+    if (dir) await installToCurrent(dir, false, targetFrameworkId)
   }
 
-  const handlePickZip = async (): Promise<void> => {
-    if (frameworkId === 'all') return
+  const handlePickZip = async (targetFrameworkId = frameworkId): Promise<void> => {
+    if (targetFrameworkId === 'all') return
     try {
       const zip = await window.aibench.shell.pickFile([{ name: 'Zip', extensions: ['zip'] }])
       if (!zip) return
-      const result = await window.aibench.skills.installFromZip(zip, [frameworkId])
+      const result = await window.aibench.skills.installFromZip(zip, [targetFrameworkId])
       if (result.conflicts.length > 0 && confirmConflicts(result.conflicts)) {
-        await window.aibench.skills.installFromZip(zip, [frameworkId], true)
+        await window.aibench.skills.installFromZip(zip, [targetFrameworkId], true)
       }
       await load()
     } catch (error) {
       showError(error, '安装 Zip 失败')
     }
+  }
+
+  const runFrameworkAction = (action: 'create' | 'zip' | 'folder', targetId: string): void => {
+    if (action === 'create') setCreateOpen(true)
+    else if (action === 'zip') void handlePickZip(targetId)
+    else void handlePickFolder(targetId)
+  }
+
+  /**
+   * Install and create need a concrete framework directory. When the list is
+   * filtered to "全部", ask which framework to write to instead of leaving the
+   * primary actions permanently disabled.
+   */
+  const requestFrameworkAction = (action: 'create' | 'zip' | 'folder'): void => {
+    if (frameworkId !== 'all') {
+      runFrameworkAction(action, frameworkId)
+      return
+    }
+    setFrameworkPrompt(action)
+  }
+
+  const chooseFramework = (targetId: string): void => {
+    const action = frameworkPrompt
+    setFrameworkPrompt(null)
+    setFrameworkId(targetId)
+    if (action) runFrameworkAction(action, targetId)
   }
 
   const onDrop = async (e: React.DragEvent): Promise<void> => {
@@ -252,8 +288,8 @@ export default function SkillsView({ config }: Props): React.ReactElement {
         if (activeTab === 'skills') void onDrop(e)
       }}
     >
-      <header className="command-header space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <header className="command-header">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="command-title">Skills</h2>
             <p className="command-subtitle">管理本地 Agent Skill 与归档</p>
@@ -261,130 +297,132 @@ export default function SkillsView({ config }: Props): React.ReactElement {
           <div className="segmented">
             <button
               type="button"
-              className={activeTab === 'skills' ? 'segmented-active' : 'segmented-item'}
+              className={activeTab === 'skills' ? 'segmented-item segmented-active' : 'segmented-item'}
               onClick={() => setActiveTab('skills')}
             >
               Skills
             </button>
             <button
               type="button"
-              className={activeTab === 'archive' ? 'segmented-active' : 'segmented-item'}
+              className={activeTab === 'archive' ? 'segmented-item segmented-active' : 'segmented-item'}
               onClick={() => setActiveTab('archive')}
             >
               归档
             </button>
           </div>
         </div>
-        {activeTab === 'skills' && (
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <input
-              className="input max-w-xs"
-              placeholder="搜索 Skill…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <button type="button" className="btn-secondary" onClick={() => void load()}>
-              刷新
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={frameworkId === 'all'}
-              title={frameworkId === 'all' ? '请先选择一个平台' : undefined}
-              onClick={() => void handlePickZip()}
-            >
-              安装 Zip
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={frameworkId === 'all'}
-              title={frameworkId === 'all' ? '请先选择一个平台' : undefined}
-              onClick={() => void handlePickFolder()}
-            >
-              安装文件夹
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={frameworkId === 'all'}
-              title={frameworkId === 'all' ? '请先选择一个平台' : undefined}
-              onClick={() => setCreateOpen(true)}
-            >
-              新建 Skill
-            </button>
-          </div>
-        )}
-      </header>
 
-      <div className="flex min-h-0 flex-1">
-        {activeTab === 'archive' ? (
-          <div className="content-scroll">
-            <ArchiveView config={config} embedded />
-          </div>
-        ) : (
-          <>
-            <aside className="rail-panel">
-              <div className="rail-label">
-                Agent 平台
-              </div>
+        {activeTab === 'skills' && (
+          <div className="mt-5 flex flex-wrap items-center gap-2.5">
+            <div className="search-field w-full max-w-[260px]">
+              <SearchIcon className="h-[15px] w-[15px]" />
+              <input
+                className="input"
+                placeholder="搜索 Skill…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-0.5">
               <button
                 type="button"
-                className={frameworkId === 'all' ? 'side-filter-active' : 'side-filter'}
+                className={frameworkId === 'all' ? 'filter-pill filter-pill-active' : 'filter-pill'}
                 onClick={() => setFrameworkId('all')}
               >
-                <span>全部</span>
+                全部
               </button>
               {config.frameworks.map((framework) => (
                 <button
                   key={framework.id}
                   type="button"
-                  className={frameworkId === framework.id ? 'side-filter-active' : 'side-filter'}
+                  className={
+                    frameworkId === framework.id ? 'filter-pill filter-pill-active' : 'filter-pill'
+                  }
                   onClick={() => setFrameworkId(framework.id)}
                 >
-                  <span>{framework.name}</span>
+                  {framework.name}
                 </button>
               ))}
-            </aside>
-            <div className="content-scroll">
-              {loading ? (
-                <p className="text-slate-500">加载中…</p>
-              ) : filtered.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center text-center text-slate-500">
-                  <p>暂无 Skill</p>
-                  <p className="mt-2 text-sm">
-                    {frameworkId === 'all' ? '所有平台暂无 Skill' : '拖拽文件夹或 zip 到此处安装'}
-                  </p>
-                </div>
-              ) : (
-                <div className="work-grid">
-                  {filtered.map((skill) => (
-                    <button
-                      key={`${skill.frameworkId}:${skill.dirName}`}
-                      type="button"
-                      className="card text-left"
-                      onClick={() => void openSkill(skill)}
-                    >
-                      <div className="font-semibold text-slate-950 dark:text-white">
-                        {skill.meta.name || skill.dirName}
-                      </div>
-                      <div className="meta-line mt-1">
-                        {skill.frameworkName} / {skill.dirName}
-                      </div>
-                      <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
-                        {skill.meta.description || '无描述'}
-                      </p>
-                      {skill.parseError && (
-                        <p className="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-300">
-                          SKILL.md 解析失败，打开后可修复
-                        </p>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
-          </>
+
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <button type="button" className="btn-ghost" onClick={() => void load()}>
+                刷新
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setGithubOpen(true)}
+              >
+                GitHub 安装
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => requestFrameworkAction('zip')}
+              >
+                安装 Zip
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => requestFrameworkAction('folder')}
+              >
+                安装文件夹
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => requestFrameworkAction('create')}
+              >
+                新建 Skill
+              </button>
+            </div>
+          </div>
+        )}
+      </header>
+
+      <div className="content-scroll">
+        {activeTab === 'archive' ? (
+          <ArchiveView config={config} embedded />
+        ) : loading ? (
+          <p className="text-sm text-slate-500">加载中…</p>
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">
+            <p className="empty-state-title">暂无 Skill</p>
+            <p className="text-[13px]">
+              {frameworkId === 'all' ? '所有平台暂无 Skill' : '拖拽文件夹或 zip 到此处安装'}
+            </p>
+          </div>
+        ) : (
+          <div className="list-card">
+            {filtered.map((skill) => (
+              <button
+                key={`${skill.frameworkId}:${skill.dirName}`}
+                type="button"
+                className="row-item"
+                onClick={() => void openSkill(skill)}
+              >
+                <span className="row-icon" aria-hidden>
+                  {(skill.meta.name || skill.dirName).slice(0, 1)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="row-title">{skill.meta.name || skill.dirName}</span>
+                  <span className="row-desc">{skill.meta.description || '无描述'}</span>
+                  {skill.parseError && (
+                    <span className="mt-1 block text-[11.5px] font-medium text-rose-600 dark:text-rose-400">
+                      SKILL.md 解析失败，打开后可修复
+                    </span>
+                  )}
+                </span>
+                <span className="row-meta">
+                  {skill.frameworkName}
+                  <ChevronRightIcon />
+                </span>
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
@@ -413,7 +451,7 @@ export default function SkillsView({ config }: Props): React.ReactElement {
         >
           <div className="space-y-3">
             {editSkill.parseError && (
-              <div className="rounded-md border border-rose-300 bg-rose-50 p-3 text-xs leading-5 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
+              <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs leading-5 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
                 SKILL.md 的 frontmatter 解析失败：{editSkill.parseError}
                 <br />
                 保存后会按当前 name / description / 正文重新生成文件。
@@ -454,7 +492,7 @@ export default function SkillsView({ config }: Props): React.ReactElement {
               />
             </label>
 
-            <div className="rounded-md border border-slate-300 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+            <div className="rounded-xl border border-slate-300 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/70">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
@@ -483,7 +521,7 @@ export default function SkillsView({ config }: Props): React.ReactElement {
                     return (
                       <div
                         key={copy.frameworkId}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-300 bg-white/70 p-2 dark:border-slate-800 dark:bg-slate-950/70"
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-300 bg-white/70 p-2 dark:border-slate-800 dark:bg-slate-950/70"
                       >
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
@@ -535,6 +573,51 @@ export default function SkillsView({ config }: Props): React.ReactElement {
                 )}
               </div>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {githubOpen && (
+        <GithubInstallDialog
+          config={config}
+          defaultFrameworkId={frameworkId}
+          onClose={() => setGithubOpen(false)}
+          onInstalled={() => {
+            setGithubOpen(false)
+            void load()
+          }}
+        />
+      )}
+
+      {frameworkPrompt && (
+        <Modal
+          open
+          title="选择目标平台"
+          onClose={() => setFrameworkPrompt(null)}
+          panelClassName="max-w-md"
+        >
+          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+            安装和新建 Skill 需要写入一个具体的 Framework 目录。
+          </p>
+          <div className="list-card">
+            {config.frameworks.map((framework) => (
+              <button
+                key={framework.id}
+                type="button"
+                className="row-item"
+                title={framework.path}
+                onClick={() => chooseFramework(framework.id)}
+              >
+                <span className="row-icon" aria-hidden>
+                  {framework.name.slice(0, 1)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="row-title">{framework.name}</span>
+                  <span className="row-desc font-mono">{framework.path}</span>
+                </span>
+                <ChevronRightIcon />
+              </button>
+            ))}
           </div>
         </Modal>
       )}
