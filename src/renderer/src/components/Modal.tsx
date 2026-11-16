@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
 import { isTopModal, popModal, pushModal } from '../lib/modal-stack'
+import { CloseIcon } from './icons'
 
 interface Props {
   open: boolean
@@ -45,7 +46,7 @@ export default function Modal({
   if (!open) return null
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="modal-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
@@ -56,26 +57,25 @@ export default function Modal({
         aria-labelledby={titleId}
         className={`modal-panel flex max-h-[90vh] w-full flex-col overflow-hidden ${panelClassName}`}
       >
-        <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-300 pb-3 dark:border-slate-800">
-          <h2
-            id={titleId}
-            className="min-w-0 truncate text-lg font-semibold text-slate-950 dark:text-white"
-          >
+        <div className="modal-header">
+          <h2 id={titleId} className="modal-title">
             {title}
           </h2>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5">
             {headerActions}
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              关闭
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="关闭"
+              title="关闭"
+              onClick={onClose}
+            >
+              <CloseIcon />
             </button>
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-        {footer && (
-          <div className="mt-4 flex justify-end gap-2 border-t border-slate-300 pt-4 dark:border-slate-800">
-            {footer}
-          </div>
-        )}
+        {footer && <div className="modal-footer">{footer}</div>}
       </div>
     </div>
   )

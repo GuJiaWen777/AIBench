@@ -39,7 +39,7 @@ export default function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+      className="modal-overlay modal-overlay-top"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onCancel()
       }}
@@ -48,12 +48,12 @@ export default function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="card w-full max-w-md"
+        className="modal-panel w-full max-w-sm"
       >
-        <p id={titleId} className="text-sm leading-relaxed">
+        <p id={titleId} className="text-sm leading-relaxed text-slate-700 dark:text-slate-200">
           {message}
         </p>
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-5 flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={onCancel}>
             取消
           </button>

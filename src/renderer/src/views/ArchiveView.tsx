@@ -68,33 +68,38 @@ export default function ArchiveView({ config, embedded = false }: Props): React.
   return (
     <div className="flex h-full flex-col">
       {!embedded && (
-        <header className="border-b border-slate-200 px-6 py-4 dark:border-slate-800">
-          <h2 className="text-xl font-semibold">归档</h2>
-          <p className="mt-1 text-sm text-slate-500">已移除的 Skill，可恢复或彻底删除</p>
+        <header className="command-header">
+          <h2 className="command-title">归档</h2>
+          <p className="command-subtitle">已移除的 Skill，可恢复或彻底删除</p>
         </header>
       )}
-      <div className={`flex-1 overflow-y-auto ${embedded ? 'p-0' : 'p-6'}`}>
+      <div className={embedded ? '' : 'content-scroll'}>
         {records.length === 0 ? (
-          <p className="text-slate-500">归档为空</p>
+          <div className="empty-state">
+            <p className="empty-state-title">归档为空</p>
+            <p className="text-[13px]">从 Skills 列表移除的 Skill 会出现在这里</p>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="list-card">
             {records.map((r) => (
-              <div key={r.id} className="card flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="font-medium">{r.meta.name || r.dirName}</div>
-                  <div className="mt-1 text-xs text-slate-500">{r.dirName}</div>
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                    来源：{r.removedFrom}
-                  </p>
-                  <p className="text-sm text-slate-500">原路径：{r.originalPath || '—'}</p>
-                  <p className="text-sm text-slate-500">
-                    移除时间：{new Date(r.removedAt).toLocaleString('zh-CN')}
-                  </p>
+              <div key={r.id} className="row-item row-item-top">
+                <span className="row-icon" aria-hidden>
+                  {(r.meta.name || r.dirName).slice(0, 1)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="row-title">{r.meta.name || r.dirName}</div>
+                  <div className="row-desc">
+                    {r.dirName} · 来源 {r.removedFrom}
+                  </div>
+                  <div className="mt-1 truncate text-xs text-slate-500">
+                    原路径 {r.originalPath || '—'} · 移除于{' '}
+                    {new Date(r.removedAt).toLocaleString('zh-CN')}
+                  </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <button
                     type="button"
-                    className="btn-primary"
+                    className="btn-secondary"
                     onClick={() => {
                       setRestoreTarget(r)
                       setSelectedFrameworks([])

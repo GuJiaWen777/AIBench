@@ -6,6 +6,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import PlaceholderDialog from '../components/PlaceholderDialog'
 import RevisionHistory from '../components/RevisionHistory'
+import { SearchIcon } from '../components/icons'
 import { showError } from '../lib/errors'
 
 type CategorySelection = 'all' | 'uncategorized' | string
@@ -231,122 +232,132 @@ export default function PromptsView(): React.ReactElement {
 
   return (
     <div className="page-shell">
-      <header className="command-header space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <header className="command-header">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="command-title">Prompts</h2>
             <p className="command-subtitle">按分类浏览、复制和编辑 Prompt</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button type="button" className="btn-secondary" onClick={() => void exportAll()}>
               导出全部
             </button>
-            <button type="button" className="btn-primary" onClick={createNew}>
+            <button
+              type="button"
+              className="btn-primary"
+              data-testid="prompt-new"
+              onClick={createNew}
+            >
               新建 Prompt
             </button>
           </div>
         </div>
-        <input
-          className="input max-w-sm"
-          placeholder="搜索标题、正文、分类…"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="search-field w-full max-w-[320px]">
+            <SearchIcon className="h-[15px] w-[15px]" />
+            <input
+              className="input"
+              placeholder="搜索标题、正文、分类…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-0.5">
+            <button
+              type="button"
+              className={activeCategory === 'all' ? 'filter-pill filter-pill-active' : 'filter-pill'}
+              onClick={() => setActiveCategory('all')}
+            >
+              全部
+              <span className="filter-pill-count">{prompts.length}</span>
+            </button>
+            <button
+              type="button"
+              className={
+                activeCategory === 'uncategorized' ? 'filter-pill filter-pill-active' : 'filter-pill'
+              }
+              onClick={() => setActiveCategory('uncategorized')}
+            >
+              未分类
+              <span className="filter-pill-count">{uncategorizedCount}</span>
+            </button>
+            {categories.map((category) => (
+              <button
+                key={category.name}
+                type="button"
+                className={
+                  activeCategory === category.name ? 'filter-pill filter-pill-active' : 'filter-pill'
+                }
+                onClick={() => setActiveCategory(category.name)}
+              >
+                {category.name}
+                <span className="filter-pill-count">{category.promptCount}</span>
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            className="btn-ghost ml-auto"
+            onClick={() => setManageCategoriesOpen(true)}
+          >
+            管理分类
+          </button>
+        </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="rail-panel">
-          <div className="mb-2 flex items-center justify-between gap-2 px-2">
-            <span className="rail-label mb-0 px-0">分类</span>
-            <button
-              type="button"
-              className="text-xs font-semibold text-cyan-700 hover:text-cyan-800 dark:text-cyan-300"
-              onClick={() => setManageCategoriesOpen(true)}
-            >
-              管理
-            </button>
+      <section className="content-scroll">
+        {visiblePrompts.length === 0 ? (
+          <div className="empty-state">
+            <p className="empty-state-title">暂无 Prompt</p>
+            <p className="text-[13px]">新建一个 Prompt 后会以卡片显示在这里</p>
           </div>
-          <button
-            type="button"
-            className={activeCategory === 'all' ? 'side-filter-active' : 'side-filter'}
-            onClick={() => setActiveCategory('all')}
-          >
-            <span>全部</span>
-            <span>{prompts.length}</span>
-          </button>
-          <button
-            type="button"
-            className={activeCategory === 'uncategorized' ? 'side-filter-active' : 'side-filter'}
-            onClick={() => setActiveCategory('uncategorized')}
-          >
-            <span>未分类</span>
-            <span>{uncategorizedCount}</span>
-          </button>
-          <div className="my-2 border-t border-slate-300 dark:border-slate-800" />
-          {categories.map((category) => (
-            <button
-              key={category.name}
-              type="button"
-              className={activeCategory === category.name ? 'side-filter-active' : 'side-filter'}
-              onClick={() => setActiveCategory(category.name)}
-            >
-              <span className="truncate">{category.name}</span>
-              <span>{category.promptCount}</span>
-            </button>
-          ))}
-        </aside>
-
-        <section className="content-scroll">
-          {visiblePrompts.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center text-slate-500">
-              <p>暂无 Prompt</p>
-              <p className="mt-2 text-sm">新建一个 Prompt 后会以卡片显示在这里</p>
-            </div>
-          ) : (
-            <div className="work-grid">
-              {visiblePrompts.map((prompt) => (
-                <article
-                  key={prompt.id}
-                  role="button"
-                  tabIndex={0}
-                  className="card group relative min-h-[190px] cursor-pointer"
-                  title="打开 Prompt 详情"
-                  onClick={() => openFromCard(prompt)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      openFromCard(prompt)
-                    }
-                  }}
-                >
-                  <div>
-                    <h3 className="line-clamp-2 font-semibold text-slate-950 dark:text-white">
-                      {prompt.title}
-                    </h3>
-                    <p className="meta-line mt-1">
-                      更新于 {formatUpdatedAt(prompt.updatedAt)}
-                    </p>
-                  </div>
-                  <p className="mt-4 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-slate-600 dark:text-slate-400">
-                    {promptPreview(prompt.body)}
+        ) : (
+          <div className="work-grid">
+            {visiblePrompts.map((prompt) => (
+              <article
+                key={prompt.id}
+                role="button"
+                tabIndex={0}
+                className="card card-interactive group relative flex min-h-[176px] flex-col"
+                title="打开 Prompt 详情"
+                onClick={() => openFromCard(prompt)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    openFromCard(prompt)
+                  }
+                }}
+              >
+                <div>
+                  <h3 className="line-clamp-2 text-[15px] font-semibold leading-snug text-slate-950 dark:text-white">
+                    {prompt.title}
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    更新于 {formatUpdatedAt(prompt.updatedAt)}
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-1">
-                    {prompt.tags.length === 0 ? (
-                      <span className="tag tag-muted">未分类</span>
-                    ) : (
-                      prompt.tags.map((tag) => (
-                        <span key={tag} className="tag">
-                          {tag}
-                        </span>
-                      ))
-                    )}
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
+                </div>
+                <p className="mt-3 line-clamp-4 flex-1 whitespace-pre-wrap text-[13px] leading-6 text-slate-600 dark:text-slate-400">
+                  {promptPreview(prompt.body)}
+                </p>
+                <div className="mt-auto flex flex-wrap gap-1 pt-4">
+                  {prompt.tags.length === 0 ? (
+                    <span className="tag tag-muted">未分类</span>
+                  ) : (
+                    prompt.tags.map((tag) => (
+                      <span key={tag} className="tag">
+                        {tag}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {draft && (
         <Modal
@@ -384,19 +395,25 @@ export default function PromptsView(): React.ReactElement {
               <button type="button" className="btn-secondary" onClick={() => void exportOne()}>
                 导出
               </button>
-              <button type="button" className="btn-primary" onClick={() => void saveDraft()}>
+              <button
+                type="button"
+                className="btn-primary"
+                data-testid="prompt-save"
+                onClick={() => void saveDraft()}
+              >
                 保存
               </button>
             </>
           }
         >
           <div className="grid min-h-[540px] gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-            <aside className="rounded-lg border border-slate-300 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/70">
+            <aside className="rounded-2xl border border-slate-300 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/60">
               <div className="meta-line">Prompt Profile</div>
               <label className="mt-4 block text-sm font-semibold text-slate-800 dark:text-slate-100">
                 标题
                 <input
                   className="input mt-2"
+                  data-testid="prompt-title"
                   value={draft.title}
                   onChange={(event) => setDraft({ ...draft, title: event.target.value })}
                 />
@@ -462,7 +479,7 @@ export default function PromptsView(): React.ReactElement {
                 )}
               </div>
 
-              <div className="mt-5 rounded-md border border-slate-300 bg-white/80 p-3 dark:border-slate-800 dark:bg-slate-950/70">
+              <div className="mt-5 rounded-xl border border-slate-300 bg-white/80 p-3 dark:border-slate-800 dark:bg-slate-950/70">
                 <div className="meta-line">Updated</div>
                 <div className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
                   {formatUpdatedAt(draft.updatedAt)}
@@ -474,6 +491,7 @@ export default function PromptsView(): React.ReactElement {
               <span>正文</span>
               <textarea
                 className="textarea mt-2 min-h-[500px] flex-1 rounded-lg leading-7"
+                data-testid="prompt-body"
                 value={draft.body}
                 onChange={(event) => setDraft({ ...draft, body: event.target.value })}
               />
@@ -605,7 +623,7 @@ function CategoryManager({
             categories.map((category) => (
               <div
                 key={category.name}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-300 bg-white/70 p-2 dark:border-slate-800 dark:bg-slate-900/70"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-300 bg-white/70 p-2 dark:border-slate-800 dark:bg-slate-900/70"
               >
                 {editingName === category.name ? (
                   <input

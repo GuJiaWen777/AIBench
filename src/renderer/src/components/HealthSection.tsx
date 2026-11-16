@@ -100,7 +100,7 @@ export default function HealthSection(): React.ReactElement {
               {report.issues.map((issue) => (
                 <li
                   key={issue.id}
-                  className="rounded-md border border-slate-300 p-3 dark:border-slate-800"
+                  className="rounded-xl border border-slate-300 p-3 dark:border-slate-800"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">

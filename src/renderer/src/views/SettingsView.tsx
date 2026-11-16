@@ -98,8 +98,11 @@ export default function SettingsView({ config, onSaved }: Props): React.ReactEle
                   <button
                     key={option.value}
                     type="button"
+                    data-testid={`theme-${option.value}`}
                     className={
-                      draft.theme === option.value ? 'segmented-active' : 'segmented-item'
+                      draft.theme === option.value
+                        ? 'segmented-item segmented-active'
+                        : 'segmented-item'
                     }
                     onClick={() => void setTheme(option.value as ThemeMode)}
                   >

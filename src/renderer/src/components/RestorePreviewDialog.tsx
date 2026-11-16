@@ -78,7 +78,7 @@ export default function RestorePreviewDialog({
           </dd>
         </dl>
 
-        <div className="space-y-3 rounded-md border border-slate-300 p-3 dark:border-slate-800">
+        <div className="space-y-3 rounded-xl border border-slate-300 p-3 dark:border-slate-800">
           <label className="flex items-start gap-2">
             <input
               type="checkbox"

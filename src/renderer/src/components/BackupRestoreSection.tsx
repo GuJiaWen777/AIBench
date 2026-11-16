@@ -101,7 +101,7 @@ export default function BackupRestoreSection({ onRestored }: Props): React.React
       </div>
 
       {info && (
-        <div className="rounded-md border border-slate-300 p-3 text-xs dark:border-slate-800">
+        <div className="rounded-xl border border-slate-300 p-3 text-xs dark:border-slate-800">
           <span className="font-semibold text-slate-700 dark:text-slate-200">数据目录</span>
           <p className="mt-1 break-all font-mono text-slate-500 dark:text-slate-400">
             {info.dataDir}
@@ -131,6 +131,7 @@ export default function BackupRestoreSection({ onRestored }: Props): React.React
         <button
           type="button"
           className="btn-primary"
+          data-testid="backup-create"
           disabled={busy !== null}
           onClick={() => void createBackup()}
         >
@@ -198,7 +199,7 @@ export default function BackupRestoreSection({ onRestored }: Props): React.React
                 </li>
               )}
             </ul>
-            <div className="rounded-md border border-slate-300 p-3 dark:border-slate-800">
+            <div className="rounded-xl border border-slate-300 p-3 dark:border-slate-800">
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                 恢复前的数据快照
               </span>

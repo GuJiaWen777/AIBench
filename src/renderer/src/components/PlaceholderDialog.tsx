@@ -70,7 +70,7 @@ export default function PlaceholderDialog({
 
         <div>
           <div className="meta-line">预览</div>
-          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-md border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-700 dark:border-slate-800 dark:bg-slate-950/70 dark:text-slate-200">
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-xl border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-700 dark:border-slate-800 dark:bg-slate-950/70 dark:text-slate-200">
             {preview || '（空）'}
           </pre>
         </div>
