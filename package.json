@@ -9,6 +9,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "release": "npm run typecheck && npm run build && electron-builder --win --publish never",
+    "release:publish": "npm run typecheck && npm run build && electron-builder --win --publish always",
     "preview": "electron-vite preview",
     "test": "node --test \"tests/*.test.ts\"",
     "test:e2e": "npm run build && node --test \"tests/e2e/*.test.ts\"",
@@ -22,6 +23,13 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "GuJiaWen777",
+        "repo": "AIBench"
+      }
+    ],
     "files": [
       "out/**/*",
       "package.json",
@@ -50,6 +58,7 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "chokidar": "^4.0.3",
+    "electron-updater": "^6.8.11",
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {
