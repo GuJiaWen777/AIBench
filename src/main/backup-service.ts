@@ -36,25 +36,17 @@ import {
   getDbPath,
   getStats
 } from './db'
+import { SCHEMA_VERSION } from './db-migrations'
 import { listArchive } from './archive-service'
 import { copyDir, resolveSkillDir } from './skill-utils'
+import createBackupWorker from './backup-worker?nodeWorker'
+import type { BackupWorkerMessage } from './backup-worker'
+import type { BackupWriterInput, BackupWriterResult, BackupWriterSkill } from './backup-writer'
 
-const MAX_BACKUP_FILES = 20000
-const MAX_BACKUP_BYTES = 512 * 1024 * 1024
 const MAX_RESTORE_ENTRIES = 20000
 const MAX_RESTORE_BYTES = 4 * 1024 * 1024 * 1024
 
-interface SkillSource {
-  frameworkId: string
-  dirName: string
-  dir: string
-}
-
-interface ZipFileSource {
-  fullPath: string
-  zipPath: string
-  size: number
-}
+type SkillSource = BackupWriterSkill
 
 function stampForFile(): string {
   return new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
@@ -103,44 +95,32 @@ function collectSkillSources(): SkillSource[] {
   return sources
 }
 
-function collectFiles(root: string, zipRoot: string, out: ZipFileSource[]): void {
-  let entries: fs.Dirent[]
-  try {
-    entries = fs.readdirSync(root, { withFileTypes: true })
-  } catch {
-    return
-  }
-  for (const entry of entries) {
-    if (entry.name === '.DS_Store') continue
-    const fullPath = path.join(root, entry.name)
-    const zipPath = `${zipRoot}/${entry.name}`
-    // Symlinks can point outside the data directory and are not part of the
-    // skill's own content, so they are skipped rather than followed.
-    if (entry.isSymbolicLink()) continue
-    if (entry.isDirectory()) collectFiles(fullPath, zipPath, out)
-    else if (entry.isFile()) {
-      try {
-        out.push({ fullPath, zipPath, size: fs.statSync(fullPath).size })
-      } catch {
-        // File vanished between readdir and stat; skip it.
-      }
+/**
+ * Zipping tens of thousands of skill files takes seconds and used to block the
+ * main process; the compression now happens on a worker thread.
+ */
+function runBackupWorker(input: BackupWriterInput): Promise<BackupWriterResult> {
+  return new Promise((resolve, reject) => {
+    const worker = createBackupWorker({ workerData: input })
+    let settled = false
+    const finish = (): boolean => {
+      if (settled) return false
+      settled = true
+      return true
     }
-  }
-}
 
-function readmeText(manifest: BackupManifest): string {
-  return [
-    'AIBench 备份',
-    '',
-    `导出时间: ${manifest.createdAt}`,
-    `版本: ${manifest.appVersion}`,
-    `包含已安装 Skill: ${manifest.includeSkills ? '是' : '否'}`,
-    `Prompt: ${manifest.counts.prompts} 条，分类: ${manifest.counts.categories} 个，历史版本: ${manifest.counts.revisions} 条`,
-    `归档 Skill: ${manifest.counts.archivedSkills} 个，已安装 Skill: ${manifest.counts.skills} 个`,
-    '',
-    '恢复方式: 打开 AIBench → 设置 → 备份与恢复 → 从备份恢复',
-    '恢复前 App 会自动保存一份当前数据快照。'
-  ].join('\n')
+    worker.once('message', (message: BackupWorkerMessage) => {
+      if (!finish()) return
+      if (message.ok) resolve(message.result)
+      else reject(new Error(message.error))
+    })
+    worker.once('error', (error) => {
+      if (finish()) reject(error)
+    })
+    worker.once('exit', (code) => {
+      if (finish()) reject(new Error(`BACKUP_WORKER_EXIT_${code}`))
+    })
+  })
 }
 
 export async function createBackup(options: {
@@ -163,10 +143,10 @@ export async function createBackup(options: {
   return createBackupAt(target, options?.includeSkills === true)
 }
 
-export function createBackupAt(
+export async function createBackupAt(
   targetPath: string,
   includeSkills: boolean
-): BackupCreateResult {
+): Promise<BackupCreateResult> {
   const config = getConfig()
   const skills = includeSkills ? collectSkillSources() : []
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'aibench-backup-'))
@@ -200,49 +180,15 @@ export function createBackupAt(
       }
     }
 
-    const files: ZipFileSource[] = [
-      {
-        fullPath: dbSnapshot,
-        zipPath: BACKUP_DB_FILE,
-        size: fs.statSync(dbSnapshot).size
-      }
-    ]
-    const configPath = configFilePath()
-    if (fs.existsSync(configPath)) {
-      files.push({
-        fullPath: configPath,
-        zipPath: BACKUP_CONFIG_FILE,
-        size: fs.statSync(configPath).size
-      })
-    }
-    if (fs.existsSync(config.archivePath)) {
-      collectFiles(config.archivePath, BACKUP_ARCHIVE_DIR, files)
-    }
-    for (const skill of skills) {
-      collectFiles(
-        skill.dir,
-        `${BACKUP_SKILLS_DIR}/${skill.frameworkId}/${skill.dirName}`,
-        files
-      )
-    }
-
-    if (files.length > MAX_BACKUP_FILES) throw new Error('BACKUP_TOO_LARGE')
-    const totalBytes = files.reduce((sum, file) => sum + file.size, 0)
-    if (totalBytes > MAX_BACKUP_BYTES) throw new Error('BACKUP_TOO_LARGE')
-
-    const zip = new AdmZip()
-    zip.addFile(
-      BACKUP_MANIFEST_FILE,
-      Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8')
-    )
-    zip.addFile('README.txt', Buffer.from(readmeText(manifest), 'utf-8'))
-    for (const file of files) {
-      const slash = file.zipPath.lastIndexOf('/')
-      zip.addLocalFile(file.fullPath, file.zipPath.slice(0, slash), file.zipPath.slice(slash + 1))
-    }
-    fs.mkdirSync(path.dirname(targetPath), { recursive: true })
-    zip.writeZip(targetPath)
-    return { path: targetPath, size: fs.statSync(targetPath).size, manifest }
+    const written = await runBackupWorker({
+      targetPath,
+      dbSnapshotPath: dbSnapshot,
+      configPath: configFilePath(),
+      archivePath: config.archivePath,
+      skills,
+      manifest
+    })
+    return { path: written.path, size: written.size, manifest }
   } finally {
     fs.rmSync(temp, { recursive: true, force: true })
   }
@@ -337,8 +283,19 @@ function validateDbFile(filePath: string): void {
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'prompts'")
       .get()
     if (!table) throw new Error('BACKUP_DB_INVALID')
+    const versionRow = probe.prepare('PRAGMA user_version').get() as
+      | { user_version?: number | bigint }
+      | undefined
+    if (Number(versionRow?.user_version ?? 0) > SCHEMA_VERSION) {
+      throw new Error('BACKUP_UNSUPPORTED_VERSION')
+    }
   } catch (error) {
-    if (error instanceof Error && error.message === 'BACKUP_DB_INVALID') throw error
+    if (
+      error instanceof Error &&
+      (error.message === 'BACKUP_DB_INVALID' || error.message === 'BACKUP_UNSUPPORTED_VERSION')
+    ) {
+      throw error
+    }
     throw new Error('BACKUP_DB_INVALID')
   } finally {
     try {

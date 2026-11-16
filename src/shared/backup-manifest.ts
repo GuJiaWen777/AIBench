@@ -13,6 +13,11 @@ export const BACKUP_CONFIG_FILE = 'data/config.json'
 export const BACKUP_ARCHIVE_DIR = 'data/archive'
 export const BACKUP_SKILLS_DIR = 'skills'
 
+/** Limits for a freshly created backup; shared so the backup worker and the
+ * main process enforce the same caps. */
+export const MAX_BACKUP_FILES = 20000
+export const MAX_BACKUP_BYTES = 512 * 1024 * 1024
+
 export const BACKUP_INVALID = 'BACKUP_INVALID'
 export const BACKUP_UNSUPPORTED_VERSION = 'BACKUP_UNSUPPORTED_VERSION'
 
