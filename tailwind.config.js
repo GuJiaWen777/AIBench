@@ -21,7 +21,7 @@ export default {
           950: '#101012'
         },
         // Single violet accent for focus, selection and primary emphasis.
-        cyan: {
+        accent: {
           50: '#f5f3ff',
           100: '#ece9ff',
           200: '#ded8ff',
@@ -59,10 +59,6 @@ export default {
           'ui-monospace',
           'monospace'
         ]
-      },
-      boxShadow: {
-        subtle: '0 1px 2px rgba(0, 0, 0, 0.04)',
-        elevated: '0 24px 64px rgba(0, 0, 0, 0.18)'
       }
     }
   },

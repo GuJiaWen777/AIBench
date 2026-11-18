@@ -143,7 +143,7 @@ export async function createBackup(options: {
   return createBackupAt(target, options?.includeSkills === true)
 }
 
-export async function createBackupAt(
+async function createBackupAt(
   targetPath: string,
   includeSkills: boolean
 ): Promise<BackupCreateResult> {

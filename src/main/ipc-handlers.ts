@@ -74,10 +74,6 @@ export function registerIpcHandlers(): void {
       return result
     },
 
-    'skills:rescan': () => {
-      notifySkillsChanged()
-    },
-
     'marketplace:inspectGithub': (_e, url) => marketplaceService.inspectGithub(url),
 
     'marketplace:installGithub': (_e, sessionId, dirNames, frameworkIds, overwrite) => {

@@ -116,7 +116,7 @@ function positionQuickWindow(): void {
   quickWindow.setPosition(x, y, false)
 }
 
-export function showQuickWindow(): void {
+function showQuickWindow(): void {
   createQuickWindow()
   if (!quickWindow) return
   positionQuickWindow()
@@ -129,7 +129,7 @@ export function hideQuickWindow(): void {
   quickWindow?.hide()
 }
 
-export function toggleQuickWindow(): void {
+function toggleQuickWindow(): void {
   if (quickWindow?.isVisible()) quickWindow.hide()
   else showQuickWindow()
 }

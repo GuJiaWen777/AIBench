@@ -268,7 +268,6 @@ export interface AibenchApi {
     diff: (dirName: string, a: string, b: string) => Promise<SkillDiff>
     sync: (source: string, dirName: string, targets: string[]) => Promise<InstallResult>
     onChanged: (callback: () => void) => () => void
-    rescan: () => Promise<void>
   }
   archive: {
     list: () => Promise<ArchiveRecord[]>

@@ -11,7 +11,7 @@ let started = false
  * Dev builds, the portable exe (which has no installer to update in place) and
  * `AIBENCH_DISABLE_UPDATES=1` skip every network check.
  */
-export function updatesEnabled(): boolean {
+function updatesEnabled(): boolean {
   return (
     app.isPackaged &&
     !process.env.PORTABLE_EXECUTABLE_FILE &&

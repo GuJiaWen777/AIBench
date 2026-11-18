@@ -277,7 +277,7 @@ export default function SkillsView({ config }: Props): React.ReactElement {
 
   return (
     <div
-      className={`page-shell ${dragOver ? 'ring-2 ring-inset ring-cyan-400' : ''}`}
+      className={`page-shell ${dragOver ? 'ring-2 ring-inset ring-accent-400' : ''}`}
       onDragOver={(e) => {
         if (activeTab !== 'skills') return
         e.preventDefault()

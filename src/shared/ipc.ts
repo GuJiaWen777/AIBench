@@ -56,8 +56,6 @@ export interface IpcContract {
     args: [source: string, dirName: string, targets: string[]]
     result: InstallResult
   }
-  'skills:rescan': { args: []; result: void }
-
   'marketplace:inspectGithub': { args: [url: string]; result: GithubPreview }
   'marketplace:installGithub': {
     args: [sessionId: string, dirNames: string[], frameworkIds: string[], overwrite?: boolean]

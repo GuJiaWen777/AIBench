@@ -37,7 +37,7 @@ export function startSkillWatcher(): void {
     .on('unlinkDir', scheduleNotify)
 }
 
-export function stopSkillWatcher(): void {
+function stopSkillWatcher(): void {
   if (notifyTimer) {
     clearTimeout(notifyTimer)
     notifyTimer = null

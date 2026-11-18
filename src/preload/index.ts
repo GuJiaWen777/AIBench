@@ -39,8 +39,7 @@ const api: AibenchApi = {
     copies: (dirName) => invoke('skills:copies', dirName),
     diff: (dirName, a, b) => invoke('skills:diff', dirName, a, b),
     sync: (source, dirName, targets) => invoke('skills:sync', source, dirName, targets),
-    onChanged: (callback) => subscribe('skills:changed', callback),
-    rescan: () => invoke('skills:rescan')
+    onChanged: (callback) => subscribe('skills:changed', callback)
   },
   marketplace: {
     inspectGithub: (url) => invoke('marketplace:inspectGithub', url),

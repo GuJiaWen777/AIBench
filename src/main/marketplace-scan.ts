@@ -48,7 +48,7 @@ const SCRIPT_EXTENSIONS = new Set([
   '.bin'
 ])
 
-export function isScriptFile(filePath: string): boolean {
+function isScriptFile(filePath: string): boolean {
   return SCRIPT_EXTENSIONS.has(path.extname(filePath).toLowerCase())
 }
 
